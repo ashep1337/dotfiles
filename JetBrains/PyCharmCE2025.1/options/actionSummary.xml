@@ -1,34 +1,40 @@
 <application>
   <component name="ActionsLocalSummary">
     <e n="$Copy">
-      <i c="5" l="1752357398026" />
+      <i c="6" l="1752500132218" />
     </e>
     <e n="$Paste">
       <i c="1" l="1752120694075" />
     </e>
     <e n="$SelectAll">
-      <i c="2" l="1752201575591" />
+      <i c="4" l="1753148076514" />
     </e>
     <e n="$Undo">
-      <i c="49" l="1752349537962" />
+      <i c="51" l="1753225703973" />
+    </e>
+    <e n="CopyPaths">
+      <i c="1" l="1753153611009" />
     </e>
     <e n="Debug">
-      <i c="3" l="1752176986394" />
+      <i c="7" l="1752677673598" />
+    </e>
+    <e n="DebugClass">
+      <i c="2" l="1752686846413" />
     </e>
     <e n="EditorBackSpace">
-      <i c="620" l="1752350088964" />
+      <i c="657" l="1753226274974" />
     </e>
     <e n="EditorChooseLookupItem">
-      <i c="4" l="1752348428445" />
+      <i c="6" l="1752544778173" />
     </e>
     <e n="EditorChooseLookupItemReplace">
       <i c="1" l="1752348310546" />
     </e>
     <e n="EditorCopy">
-      <i c="31" l="1752358643675" />
+      <i c="47" l="1753225701441" />
     </e>
     <e n="EditorCut">
-      <i c="3" l="1752347567125" />
+      <i c="4" l="1753225351822" />
     </e>
     <e n="EditorDeleteToWordStart">
       <i c="5" l="1752346369646" />
@@ -43,10 +49,10 @@
       <i c="1" l="1752346364570" />
     </e>
     <e n="EditorEnter">
-      <i c="308" l="1752350001925" />
+      <i c="378" l="1753234293733" />
     </e>
     <e n="EditorEscape">
-      <i c="4" l="1752346317375" />
+      <i c="9" l="1752686890220" />
     </e>
     <e n="EditorIndentSelection">
       <i c="2" l="1752347302992" />
@@ -58,10 +64,10 @@
       <i c="38" l="1752348891577" />
     </e>
     <e n="EditorPaste">
-      <i c="18" l="1752349066334" />
+      <i c="20" l="1752544752356" />
     </e>
     <e n="EditorPreviousWord">
-      <i c="79" l="1752348889886" />
+      <i c="80" l="1752499977895" />
     </e>
     <e n="EditorRight">
       <i c="240" l="1752349555939" />
@@ -73,16 +79,25 @@
       <i c="21" l="1752349558719" />
     </e>
     <e n="EditorUp">
-      <i c="69" l="1752349557258" />
+      <i c="75" l="1753225497092" />
     </e>
     <e n="Educational.RefreshTask">
       <i c="1" l="1752121911048" />
     </e>
     <e n="ExpandAllRegions">
-      <i c="5" l="1752170547175" />
+      <i c="8" l="1752672756614" />
+    </e>
+    <e n="ExpandRegion">
+      <i c="1" l="1752672755882" />
     </e>
     <e n="GotoSuperMethod">
       <i c="5" l="1752121886915" />
+    </e>
+    <e n="NewDir">
+      <i c="1" l="1753291046945" />
+    </e>
+    <e n="NewElement">
+      <i c="1" l="1753291039392" />
     </e>
     <e n="PasteMultiple">
       <i c="2" l="1752123415604" />
@@ -94,28 +109,34 @@
       <i c="2" l="1752346302085" />
     </e>
     <e n="Rerun">
-      <i c="1" l="1752121804692" />
+      <i c="3" l="1752677708606" />
     </e>
     <e n="Run">
-      <i c="61" l="1752349726627" />
+      <i c="71" l="1753225506723" />
     </e>
     <e n="RunAnything">
-      <i c="1" l="1752346794991" />
+      <i c="3" l="1753291138264" />
     </e>
     <e n="RunClass">
-      <i c="11" l="1752349999611" />
+      <i c="17" l="1753225211501" />
+    </e>
+    <e n="StepOver">
+      <i c="81" l="1752686864371" />
     </e>
     <e n="Stop">
-      <i c="4" l="1752279501756" />
+      <i c="8" l="1752677706751" />
     </e>
     <e n="SynchronizeCurrentFile">
       <i c="1" l="1752121814454" />
+    </e>
+    <e n="ToggleLineBreakpoint">
+      <i c="4" l="1752686841325" />
     </e>
     <e n="com.intellij.execution.actions.RunCurrentFileExecutorAction">
       <i c="1" l="1752121796650" />
     </e>
     <e n="com.intellij.execution.console.ConsoleExecuteAction">
-      <i c="1" l="1752176993355" />
+      <i c="11" l="1752544792538" />
     </e>
     <e n="com.intellij.notification.NotificationAction$Simple">
       <i c="1" l="1752121908122" />
@@ -126,20 +147,26 @@
     <e n="com.intellij.openapi.editor.impl.EditorMarkupModelImpl$TrafficLightAction">
       <i c="4" l="1752123868355" />
     </e>
+    <e n="com.intellij.openapi.fileEditor.impl.tabActions.CloseTab">
+      <i c="3" l="1753157864613" />
+    </e>
     <e n="com.intellij.openapi.project.LightEditActionFactory$SimpleLightEditCompatibleAction">
       <i c="1" l="1752121891797" />
     </e>
     <e n="com.intellij.openapi.wm.impl.SquareAnActionButton">
-      <i c="1" l="1752121895584" />
+      <i c="3" l="1753291065653" />
     </e>
     <e n="com.intellij.toolWindow.ToolWindowHeader$HideAction">
-      <i c="1" l="1752121894345" />
+      <i c="2" l="1752547210581" />
     </e>
     <e n="com.intellij.toolWindow.ToolWindowHeader$ShowOptionsAction">
       <i c="1" l="1752121896958" />
     </e>
+    <e n="com.intellij.xdebugger.impl.breakpoints.RemoveBreakpointGutterIconAction">
+      <i c="3" l="1752686782431" />
+    </e>
     <e n="com.jetbrains.edu.learning.taskToolWindow.ui.navigationMap.NavigationMapAction">
-      <i c="31" l="1752335983089" />
+      <i c="39" l="1752461903303" />
     </e>
   </component>
 </application>

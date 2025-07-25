@@ -1,5 +1,7 @@
 [Added Associations]
+application/pdf=papers.desktop;
 text/plain=zathura.desktop;
 
 [Default Applications]
+application/pdf=papers.desktop;
 text/plain=zathura.desktop;
