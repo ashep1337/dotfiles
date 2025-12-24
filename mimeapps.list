@@ -1,7 +1,27 @@
 [Added Associations]
 application/pdf=papers.desktop;
-text/plain=zathura.desktop;
+image/jpeg=xdg-open.desktop;xdg-open-6.desktop;xdg-open-5.desktop;xdg-open-4.desktop;xdg-open-3.desktop;xdg-open-2.desktop;
+image/png=feh-3.desktop;feh-2.desktop;
+text/plain=kate-3.desktop;kate-2.desktop;kate.desktop;zathura.desktop;
+x-scheme-handler/http=firefox.desktop;
+x-scheme-handler/https=firefox.desktop;
+text/html=firefox.desktop;
+x-scheme-handler/chrome=firefox.desktop;
 
 [Default Applications]
 application/pdf=papers.desktop;
-text/plain=zathura.desktop;
+image/jpeg=xdg-open.desktop;
+image/png=feh-3.desktop;
+text/plain=kate-3.desktop;
+x-scheme-handler/http=firefox.desktop
+x-scheme-handler/https=firefox.desktop
+x-scheme-handler/chrome=firefox.desktop
+text/html=firefox.desktop
+application/x-extension-htm=firefox.desktop
+application/x-extension-html=firefox.desktop
+application/x-extension-shtml=firefox.desktop
+application/xhtml+xml=firefox.desktop
+application/x-extension-xhtml=firefox.desktop
+application/x-extension-xht=firefox.desktop
+x-scheme-handler/about=google-chrome.desktop
+x-scheme-handler/unknown=google-chrome.desktop

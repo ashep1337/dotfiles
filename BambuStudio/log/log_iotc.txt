@@ -1,0 +1,111 @@
+[25-10-26 14:13:55.921654][D][7F67723A4E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-10-26 14:13:55.935025][D][7F67723A4E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-10-26 14:13:55.935037][D][7F67723A4E40][IOTC] @ErrCode -12 - Line (13010)
+[25-10-28 22:05:52.198974][D][7FBFC83E5E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-10-28 22:05:52.207194][D][7FBFC83E5E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-10-28 22:05:52.207201][D][7FBFC83E5E40][IOTC] @ErrCode -12 - Line (13010)
+[25-10-28 22:14:31.246835][D][7EFF347DCE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-10-28 22:14:31.256863][D][7EFF347DCE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-10-28 22:14:31.256870][D][7EFF347DCE40][IOTC] @ErrCode -12 - Line (13010)
+[25-10-28 22:25:35.410634][D][7F0AF58EEE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-10-28 22:25:35.420464][D][7F0AF58EEE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-10-28 22:25:35.420471][D][7F0AF58EEE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 00:54:24.646747][D][7F24A37FBE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 00:54:24.657123][D][7F24A37FBE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 00:54:24.657131][D][7F24A37FBE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 00:56:14.630515][D][7F1257916E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 00:56:14.639506][D][7F1257916E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 00:56:14.639512][D][7F1257916E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 10:20:51.021615][D][7FF8BB4F5E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 10:20:51.031459][D][7FF8BB4F5E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 10:20:51.031465][D][7FF8BB4F5E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 12:24:48.440759][D][7F7D5AF29E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 12:24:48.449000][D][7F7D5AF29E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 12:24:48.449006][D][7F7D5AF29E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 12:32:53.451450][D][7F44874DCE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 12:32:53.460317][D][7F44874DCE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 12:32:53.460323][D][7F44874DCE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 18:04:17.612104][D][7F1EAFDEBE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 18:04:17.620075][D][7F1EAFDEBE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 18:04:17.620080][D][7F1EAFDEBE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 21:13:24.125896][D][7F42BCB7DE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 21:13:24.135165][D][7F42BCB7DE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 21:13:24.135173][D][7F42BCB7DE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-01 23:47:25.452201][D][7F970C59CE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-01 23:47:25.460708][D][7F970C59CE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-01 23:47:25.460715][D][7F970C59CE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-02 00:08:16.592755][D][7F7068DAFE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-02 00:08:16.594100][D][7F7068DAFE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-02 00:08:16.594106][D][7F7068DAFE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-02 00:11:45.780488][D][7F5DACBDCE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-02 00:11:45.790466][D][7F5DACBDCE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-02 00:11:45.790472][D][7F5DACBDCE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-02 08:45:20.403884][D][7F0E5CF54E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-02 08:45:20.414917][D][7F0E5CF54E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-02 08:45:20.414927][D][7F0E5CF54E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-02 21:13:15.742739][D][7F34C77DCE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-02 21:13:15.743106][D][7F34C77DCE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-02 21:13:15.743114][D][7F34C77DCE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-03 18:42:44.235514][D][7FB09D0E9E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-03 18:42:44.246190][D][7FB09D0E9E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-03 18:42:44.246198][D][7FB09D0E9E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-09 00:21:26.468897][D][7F9F837A4E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-09 00:21:26.469162][D][7F9F837A4E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-09 00:21:26.469167][D][7F9F837A4E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-15 14:21:31.640817][D][7F0FE00E0E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-15 14:21:31.676223][D][7F0FE00E0E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-15 14:21:31.676243][D][7F0FE00E0E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-16 13:15:37.841113][D][7F2C6F2EEE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-16 13:15:37.842741][D][7F2C6F2EEE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-16 13:15:37.842746][D][7F2C6F2EEE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-18 08:19:17.755173][D][7F483A4EEE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-18 08:19:17.763620][D][7F483A4EEE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-18 08:19:17.763626][D][7F483A4EEE40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-18 19:58:30.175333][D][7FBD09BC5E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-18 19:58:30.186613][D][7FBD09BC5E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-18 19:58:30.186620][D][7FBD09BC5E40][IOTC] @ErrCode -12 - Line (13010)
+[25-11-29 19:15:47.160362][D][7FC5BA6E7E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-11-29 19:15:47.169243][D][7FC5BA6E7E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-11-29 19:15:47.169249][D][7FC5BA6E7E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-08 20:52:22.981505][D][7F0B248EEE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-08 20:52:22.991596][D][7F0B248EEE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-08 20:52:22.991605][D][7F0B248EEE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-10 21:16:39.283508][D][7F8744D0FE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-10 21:16:39.297208][D][7F8744D0FE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-10 21:16:39.297216][D][7F8744D0FE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-10 21:19:29.176628][D][7FD67AA1AE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-10 21:19:29.179573][D][7FD67AA1AE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-10 21:19:29.179578][D][7FD67AA1AE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-10 21:24:31.133378][D][7F2F4F0D9E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-10 21:24:31.147965][D][7F2F4F0D9E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-10 21:24:31.147971][D][7F2F4F0D9E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-13 21:04:30.828026][D][7F9B4EA1AE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-13 21:04:30.842697][D][7F9B4EA1AE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-13 21:04:30.842705][D][7F9B4EA1AE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-13 21:04:49.756927][D][7F9B6B4E1E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-13 21:04:49.770291][D][7F9B6B4E1E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-13 21:04:49.770298][D][7F9B6B4E1E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-13 21:06:07.342668][D][7F903D554E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-13 21:06:07.356333][D][7F903D554E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-13 21:06:07.356339][D][7F903D554E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-14 12:52:21.062131][D][7FD257D8CE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-14 12:52:21.075564][D][7FD257D8CE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-14 12:52:21.075571][D][7FD257D8CE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-14 12:55:14.946055][D][7F1A370DCE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-14 12:55:14.961015][D][7F1A370DCE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-14 12:55:14.961027][D][7F1A370DCE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-18 13:47:33.096439][D][7F878E3EBE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-18 13:47:33.109272][D][7F878E3EBE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-18 13:47:33.109280][D][7F878E3EBE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-18 20:58:33.459040][D][7FA5F44E1E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-18 20:58:33.472450][D][7FA5F44E1E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-18 20:58:33.472457][D][7FA5F44E1E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-20 00:09:15.707527][D][7FE604A1AE40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-20 00:09:15.722281][D][7FE604A1AE40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-20 00:09:15.722289][D][7FE604A1AE40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-20 13:52:36.398648][D][7F89F11C9E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-20 13:52:36.414511][D][7F89F11C9E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-20 13:52:36.414517][D][7F89F11C9E40][IOTC] @ErrCode -12 - Line (13010)
+[25-12-21 20:47:54.668381][D][7F68B1137E40][IOTC] [IOTC_Check_Session_Status] Error: Not Initialized!
+[25-12-21 20:47:54.683003][D][7F68B1137E40][IOTC] @@@@@ IOTC_DeInitialize called
+[25-12-21 20:47:54.683011][D][7F68B1137E40][IOTC] @ErrCode -12 - Line (13010)

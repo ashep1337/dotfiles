@@ -1,0 +1,212 @@
+2025-08-05 19:45:01 Arduino IDE 2.3.6
+2025-08-05 19:45:01 Checking for frontend application configuration customizations. Module path: /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/electron-main.js, destination 'package.json': /tmp/.mount_arduinR8I5X9/resources/app/package.json
+2025-08-05 19:45:01 Setting 'theia.frontend.config.appVersion' application configuration value to: "2.3.6" (type of string)
+2025-08-05 19:45:01 Setting 'theia.frontend.config.cliVersion' application configuration value to: "1.2.0" (type of string)
+2025-08-05 19:45:01 Setting 'theia.frontend.config.buildDate' application configuration value to: "2025-04-09T11:24:04.835Z" (type of string)
+2025-08-05 19:45:01 Frontend application configuration after modifications: {"applicationName":"Arduino IDE","defaultTheme":{"light":"arduino-theme","dark":"arduino-theme-dark"},"defaultIconTheme":"none","electron":{"windowOptions":{},"showWindowEarly":true,"splashScreenOptions":{},"uriScheme":"arduino-ide"},"defaultLocale":"","validatePreferencesSchema":false,"reloadOnReconnect":true,"uriScheme":"theia","preferences":{"window.title":"${rootName}${activeEditorShort}${appName}","files.autoSave":"afterDelay","editor.minimap.enabled":false,"editor.tabSize":2,"editor.scrollBeyondLastLine":false,"editor.quickSuggestions":{"other":false,"comments":false,"strings":false},"editor.maxTokenizationLineLength":500,"editor.bracketPairColorization.enabled":false,"breadcrumbs.enabled":false,"workbench.tree.renderIndentGuides":"none","explorer.compactFolders":false},"appVersion":"2.3.6","cliVersion":"1.2.0","buildDate":"2025-04-09T11:24:04.835Z"}
+2025-08-05 19:45:01 Starting backend process. PID: 4647
+2025-08-05 19:45:02 Showing main window early
+2025-08-05 19:45:02 Using browser-only version of superagent in non-browser environment
+2025-08-05 19:45:02 Configuration directory URI: 'file:///home/ashep/.arduinoIDE'
+2025-08-05 19:45:02 Configuring to accept webviews on '^.+\.webview\..+$' hostname.
+2025-08-05 19:45:02 2025-08-06T00:45:02.320Z root INFO Backend u.initialize: 24.1 ms [Finished 0.375 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.322Z root INFO Backend Object.initialize: 23.2 ms [Finished 0.375 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.322Z root INFO Backend a.initialize: 0.8 ms [Finished 0.375 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.322Z root INFO Backend a.initialize: 0.6 ms [Finished 0.375 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.322Z root INFO Backend u.initialize: 0.8 ms [Finished 0.375 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.324Z root INFO Backend l.initialize: 24.0 ms [Finished 0.376 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.328Z root INFO configured all backend app contributions
+2025-08-05 19:45:02 2025-08-06T00:45:02.328Z root INFO Backend l.onStart: 0.7 ms [Finished 0.383 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.328Z root INFO Backend d.onStart: 0.1 ms [Finished 0.383 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.328Z root INFO Backend a.onStart: 0.2 ms [Finished 0.383 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z config INFO >>> Initializing CLI configuration...
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z root INFO Backend x.onStart: 0.2 ms [Finished 0.384 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z config INFO Loading CLI configuration from /home/ashep/.arduinoIDE/arduino-cli.yaml...
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z daemon INFO Starting daemon from /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/resources/arduino-cli...
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z root INFO Backend w.onStart: 0.2 ms [Finished 0.384 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z discovery-log INFO start
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z discovery-log INFO start new deferred
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z root INFO Backend v.onStart: 0.1 ms [Finished 0.384 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.329Z root INFO Backend a.onStart: 0.0 ms [Finished 0.384 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.331Z root INFO Theia app listening on http://127.0.0.1:38277.
+2025-08-05 19:45:02 2025-08-06T00:45:02.331Z root INFO Finished starting backend application: 2.0 ms [Finished 0.386 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.331Z root WARN The local plugin referenced by local-dir:/home/ashep/.arduinoIDE/plugins does not exist.
+2025-08-05 19:45:02 2025-08-06T00:45:02.331Z root WARN The local plugin referenced by local-dir:/home/ashep/.arduinoIDE/deployedPlugins does not exist.
+2025-08-05 19:45:02 2025-08-06T00:45:02.340Z config INFO Loaded CLI configuration: {"board_manager":{"additional_urls":[]}}
+2025-08-05 19:45:02 2025-08-06T00:45:02.340Z config INFO Loading fallback CLI configuration to get 'directories.data' and 'directories.user'
+2025-08-05 19:45:02 2025-08-06T00:45:02.404Z root INFO Resolve plugins list: 74.7 ms [Finished 0.459 s after backend start]
+2025-08-05 19:45:02 2025-08-06T00:45:02.484Z daemon INFO time="2025-08-05T19:45:02-05:00" level=info msg="arduino-cli version 1.2.0"
+2025-08-05 19:45:02 2025-08-06T00:45:02.484Z daemon INFO time="2025-08-05T19:45:02-05:00" level=info msg="Using config file: /home/ashep/.arduinoIDE/arduino-cli.yaml"
+time="2025-08-05T19:45:02-05:00" level=info msg="Executing `arduino-cli daemon`"
+2025-08-05 19:45:02 2025-08-06T00:45:02.489Z config INFO Loaded fallback CLI configuration: {"directories":{"user":"/home/ashep/Arduino","data":"/home/ashep/.arduino15"}}
+2025-08-05 19:45:02 2025-08-06T00:45:02.489Z config INFO Merged CLI configuration with the fallback: {"directories":{"user":"/home/ashep/Arduino","data":"/home/ashep/.arduino15"},"board_manager":{"additional_urls":[]}}
+2025-08-05 19:45:02 2025-08-06T00:45:02.489Z config INFO Loaded the CLI configuration.
+2025-08-05 19:45:02 2025-08-06T00:45:02.502Z daemon INFO Daemon is now listening on 127.0.0.1:45027
+{"IP":"127.0.0.1","Port":"45027"}
+2025-08-05 19:45:02 2025-08-06T00:45:02.502Z daemon INFO Daemon is running.
+2025-08-05 19:45:02 2025-08-06T00:45:02.502Z config INFO Mapped the CLI configuration: {"dataDirUri":"file:///home/ashep/.arduino15","sketchDirUri":"file:///home/ashep/Arduino","additionalUrls":[],"network":"none","locale":"en"}
+2025-08-05 19:45:02 2025-08-06T00:45:02.502Z config INFO Validating the CLI configuration...
+2025-08-05 19:45:02 2025-08-06T00:45:02.505Z config INFO The CLI config is valid.
+2025-08-05 19:45:02 2025-08-06T00:45:02.505Z config INFO <<< Initialized the CLI configuration.
+2025-08-05 19:45:02 2025-08-06T00:45:02.546Z daemon INFO time="2025-08-05T19:45:02-05:00" level=info msg="Checking signature" index=/home/ashep/.arduino15/package_index.json signatureFile=/home/ashep/.arduino15/package_index.json.sig trusted=true
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading hardware from: /home/ashep/.arduino15/packages"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading package arduino from: /home/ashep/.arduino15/packages/arduino/hardware"
+time="2025-08-05T19:45:02-05:00" level=info msg="Missing signature file" index=/home/ashep/.arduino15/packages/arduino/hardware/avr/1.8.6/installed.json
+time="2025-08-05T19:45:02-05:00" level=info msg="Adding monitor tool" protocol=serial tool="builtin:serial-monitor"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded platform" platform="arduino:avr@1.8.6"
+time="2025-08-05T19:45:02-05:00" level=info msg="Checking existence of 'tools' path: /home/ashep/.arduino15/packages/arduino/tools"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading tools from dir: /home/ashep/.arduino15/packages/arduino/tools"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="arduino:arduinoOTA@1.3.0"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="arduino:avr-gcc@7.3.0-atmel3.6.1-arduino7"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="arduino:avrdude@6.3.0-arduino17"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading package builtin from: /home/ashep/.arduino15/packages/builtin"
+time="2025-08-05T19:45:02-05:00" level=info msg="Checking existence of 'tools' path: /home/ashep/.arduino15/packages/builtin/tools"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading tools from dir: /home/ashep/.arduino15/packages/builtin/tools"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="builtin:ctags@5.8-arduino11"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="builtin:dfu-discovery@0.1.2"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="builtin:mdns-discovery@1.0.9"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="builtin:serial-discovery@1.4.1"
+time="2025-08-05T19:45:02-05:00" level=info msg="Loaded tool" tool="builtin:serial-monitor@0.15.0"
+time="2025-08-05T19:45:02-05:00" level=info msg="Adding libraries dir" dir=/home/ashep/.arduino15/packages/arduino/hardware/avr/1.8.6/libraries isSingleLibrary=false location=platform
+time="2025-08-05T19:45:02-05:00" level=info msg="Loading libraries index file" index=/home/ashep/.arduino15/library_index.json
+2025-08-05 19:45:02 2025-08-06T00:45:02.637Z daemon INFO time="2025-08-05T19:45:02-05:00" level=info msg="Adding libraries dir" dir=/home/ashep/.arduino15/libraries isSingleLibrary=false location=ide
+time="2025-08-05T19:45:02-05:00" level=info msg="Adding libraries dir" dir=/home/ashep/Arduino/libraries isSingleLibrary=false location=user
+2025-08-05 19:45:02 2025-08-06T00:45:02.641Z discovery-log INFO start resolved watching
+2025-08-05 19:45:02 2025-08-06T00:45:02.651Z discovery-log INFO {"eventType":"add","port":{"matchingBoardsList":[],"port":{"address":"/dev/ttyUSB0","label":"/dev/ttyUSB0","protocol":"serial","protocolLabel":"Serial Port (USB)","propertiesMap":[["pid","0xea60"],["serialNumber","0001"],["vid","0x10c4"]],"hardwareId":"0001"}},"error":""}
+2025-08-05 19:45:02 2025-08-06T00:45:02.985Z root INFO Deploy plugins list: 655.8 ms [Finished 1.041 s after backend start]
+2025-08-05 19:45:03 2025-08-06T00:45:03.161Z root INFO creating connection for 1
+2025-08-05 19:45:03 2025-08-06T00:45:03.641Z root WARN A command editor.action.toggleStickyScroll is already registered.
+2025-08-05 19:45:03 Opening channel for service path '/services/electron-window'.
+2025-08-05 19:45:03 Opening channel for service path '/services/ide-updater'.
+2025-08-05 19:45:03 2025-08-06T00:45:03.699Z root INFO Start frontend contributions: 146.8 ms [Finished 1.206 s after frontend start]
+2025-08-05 19:45:03 2025-08-06T00:45:03.699Z root INFO Changed application state from 'init' to 'started_contributions'.
+2025-08-05 19:45:03 2025-08-06T00:45:03.710Z root INFO Changed application state from 'started_contributions' to 'attached_shell'.
+2025-08-05 19:45:03 2025-08-06T00:45:03.710Z root INFO >>> Restoring the layout state...
+2025-08-05 19:45:03 2025-08-06T00:45:03.726Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Waiting for backend deployment: 30.9 ms [Finished 1.235 s after frontend start]
+2025-08-05 19:45:03 2025-08-06T00:45:03.967Z root INFO <<< Nothing to restore.
+2025-08-05 19:45:03 2025-08-06T00:45:03.967Z root INFO Initialize the workbench layout: 125.1 ms [Finished 1.348 s after frontend start]
+2025-08-05 19:45:03 2025-08-06T00:45:03.967Z root INFO Changed application state from 'attached_shell' to 'initialized_layout'.
+2025-08-05 19:45:03 2025-08-06T00:45:03.969Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785) starting instance
+[Object: null prototype] {}
+2025-08-05 19:45:04 2025-08-06T00:45:04.287Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Sync of 23 plugins: 546.2 ms [Finished 1.781 s after frontend start]
+2025-08-05 19:45:04 2025-08-06T00:45:04.287Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Loading plugin contributions
+2025-08-05 19:45:04 2025-08-06T00:45:04.287Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Load contributions of 23 plugins: 18.8 ms [Finished 1.800 s after frontend start]
+2025-08-05 19:45:04 2025-08-06T00:45:04.318Z root WARN 'cpp' language is remapped from 'source.cpp.embedded.macro' to 'source.cpp' scope
+2025-08-05 19:45:04 2025-08-06T00:45:04.318Z root WARN a registered grammar configuration for 'cpp' language is overridden
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.armToolchainPath.linux as cortex-debug.armToolchainPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.armToolchainPath.osx as cortex-debug.armToolchainPath is null
+Conflict in settings file Default: Ignoring cortex-debug.armToolchainPath.windows as cortex-debug.armToolchainPath is null
+Conflict in settings file Default: Ignoring cortex-debug.JLinkGDBServerPath.linux as cortex-debug.JLinkGDBServerPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.JLinkGDBServerPath.osx as cortex-debug.JLinkGDBServerPath is null
+Conflict in settings file Default: Ignoring cortex-debug.JLinkGDBServerPath.windows as cortex-debug.JLinkGDBServerPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.openocdPath.linux as cortex-debug.openocdPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.openocdPath.osx as cortex-debug.openocdPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.openocdPath.windows as cortex-debug.openocdPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.pyocdPath.linux as cortex-debug.pyocdPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.pyocdPath.osx as cortex-debug.pyocdPath is null
+Conflict in settings file Default: Ignoring cortex-debug.pyocdPath.windows as cortex-debug.pyocdPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.PEGDBServerPath.linux as cortex-debug.PEGDBServerPath is null
+Conflict in settings file Default: Ignoring cortex-debug.PEGDBServerPath.osx as cortex-debug.PEGDBServerPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.PEGDBServerPath.windows as cortex-debug.PEGDBServerPath is null
+Conflict in settings file Default: Ignoring cortex-debug.stutilPath.linux as cortex-debug.stutilPath is null
+Conflict in settings file Default: Ignoring cortex-debug.stutilPath.osx as cortex-debug.stutilPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.stutilPath.windows as cortex-debug.stutilPath is null
+Conflict in settings file Default: Ignoring cortex-debug.stlinkPath.linux as cortex-debug.stlinkPath is null
+Conflict in settings file Default: Ignoring cortex-debug.stlinkPath.osx as cortex-debug.stlinkPath is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.stlinkPath.windows as cortex-debug.stlinkPath is null
+Conflict in settings file Default: Ignoring cortex-debug.stm32cubeprogrammer.linux as cortex-debug.stm32cubeprogrammer is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.stm32cubeprogrammer.osx as cortex-debug.stm32cubeprogrammer is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.435Z root ERROR [hosted-plugin: 4785] Conflict in settings file Default: Ignoring cortex-debug.stm32cubeprogrammer.windows as cortex-debug.stm32cubeprogrammer is null
+2025-08-05 19:45:04 2025-08-06T00:45:04.439Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): PluginManagerExtImpl/init()
+2025-08-05 19:45:04 2025-08-06T00:45:04.440Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-arduino-api@0.1.2 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.480Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(json-language-features@1.88.1 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.482Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(cortex-debug@1.5.1 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.482Z root INFO [hosted-plugin: 4785] Debugger contribution has been registered: cortex-debug
+2025-08-05 19:45:04 2025-08-06T00:45:04.483Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-arduino-tools@0.1.3 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.484Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(cpp@1.88.1 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.485Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(json@1.88.1 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.487Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-bg@1.48.3 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.487Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-cs@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.488Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-de@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.489Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-es@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.490Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-fr@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.491Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-hu@1.48.3 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.492Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-it@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.492Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-ja@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.493Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-ko@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.494Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-nl@1.48.3 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.494Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-pl@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.494Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-pt-BR@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.495Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-ru@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.495Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-tr@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.495Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-uk@1.48.3 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.495Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-zh-hans@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.495Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): initializing(vscode-language-pack-zh-hant@1.96.0 with /tmp/.mount_arduinR8I5X9/resources/app/lib/backend/plugin-vscode-init)
+2025-08-05 19:45:04 2025-08-06T00:45:04.501Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): PluginManagerExtImpl/loadPlugin(/tmp/.mount_arduinR8I5X9/resources/app/plugins/vscode-builtin-json-language-features/extension/client/dist/node/jsonClientMain)
+2025-08-05 19:45:04 2025-08-06T00:45:04.533Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): PluginManagerExtImpl/loadPlugin(/tmp/.mount_arduinR8I5X9/resources/app/plugins/vscode-arduino-api/extension/dist/extension.js)
+2025-08-05 19:45:04 2025-08-06T00:45:04.536Z root INFO [hosted-plugin: 4785] calling activation function on Arduino IDE API for VS Code extensions
+2025-08-05 19:45:04 2025-08-06T00:45:04.584Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Starting plugins.
+2025-08-05 19:45:04 2025-08-06T00:45:04.589Z root INFO [hosted-plugin: 4785] PLUGIN_HOST(4785): PluginManagerExtImpl/loadPlugin(/tmp/.mount_arduinR8I5X9/resources/app/plugins/cortex-debug/extension/dist/extension.js)
+2025-08-05 19:45:04 2025-08-06T00:45:04.607Z root INFO [hosted-plugin: 4785] Debug configuration provider has been registered: cortex-debug, trigger: 1
+2025-08-05 19:45:04 2025-08-06T00:45:04.607Z root INFO [hosted-plugin: 4785] calling activation function on Cortex-Debug
+2025-08-05 19:45:04 2025-08-06T00:45:04.608Z root INFO [hosted-plugin: 4785] GDB server console created
+2025-08-05 19:45:04 2025-08-06T00:45:04.615Z root INFO [65a47373-0340-4056-ac2b-ee2b4f34f631] Start of 23 plugins: 308.0 ms [Finished 2.129 s after frontend start]
+2025-08-05 19:45:04 2025-08-06T00:45:04.666Z root INFO [hosted-plugin: 4785] calling activation function on JSON Language Features (built-in)
+2025-08-05 19:45:04 2025-08-06T00:45:04.730Z root INFO Frontend application start: 1119.5 ms [Finished 2.785 s after backend start]
+2025-08-05 19:45:04 Checking for update
+2025-08-05 19:45:04 2025-08-06T00:45:04.741Z root INFO Replace loading indicator with ready workbench UI (animation): 811.5 ms [Finished 2.165 s after frontend start]
+2025-08-05 19:45:04 2025-08-06T00:45:04.741Z root INFO Changed application state from 'initialized_layout' to 'ready'.
+2025-08-05 19:45:04 2025-08-06T00:45:04.741Z root WARN Linked preference "workbench.colorCustomizations" not found.
+2025-08-05 19:45:04 2025-08-06T00:45:04.918Z root ERROR ---- !!!SLOW!!! DURATION: search took 172.738 ms. Args: [{"type":"Updatable"}] ----
+2025-08-05 19:45:05 Update for version 2.3.6 is not available (latest version: 2.3.6, downgrade is allowed).
+2025-08-05 19:45:12 isTempSketch: true. Input was /tmp/.arduinoIDE-unsaved202575-4647-b0o30g.sy809/sketch_aug5a
+2025-08-05 19:45:12 Ignored marking workspace as a closed sketch. The sketch was detected as temporary. Workspace URI: file:///tmp/.arduinoIDE-unsaved202575-4647-b0o30g.sy809/sketch_aug5a.
+2025-08-05 19:45:12 isTempSketch: true. Input was /tmp/.arduinoIDE-unsaved202575-4647-b0o30g.sy809/sketch_aug5a
+2025-08-05 19:45:12 Ignored marking workspace as a closed sketch. The sketch was detected as temporary. Workspace URI: file:///tmp/.arduinoIDE-unsaved202575-4647-b0o30g.sy809/sketch_aug5a.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO socked closed
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO closing connection for 1
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/localization-server'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/os'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/commands'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/keyboard'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/logger'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/messageService'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/ChannelCloseService'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/remote-filesystem'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/envs'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/authentication-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.271Z root INFO Closing channel on service path '/services/sketches-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/config-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/workspace'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/notification-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/arduino-daemon'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/stopwatch'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/application'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/i18n'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/quickInput'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/debug'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/shell-terminal'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/quickPick'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/task'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/search'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/hostedPlugin'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/plugin-ext'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/plugin-paths'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/cli-preferences'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/boards-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/response-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/file-system-ext'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/core-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/example-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/library-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/executable-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/arduino-firmware-uploader'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/formatter'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/search-in-workspace'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/request-service'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/keyStore'.
+2025-08-05 19:45:12 2025-08-06T00:45:12.272Z root INFO Closing channel on service path '/services/languagePackService'.
+2025-08-05 19:45:12 Closing channel on service path '/services/electron-window'.
+2025-08-05 19:45:12 Closing channel on service path '/services/ide-updater'.
+2025-08-05 19:45:12 Stored workspaces roots: 
+2025-08-05 19:45:12 No sketches were scheduled for deletion.

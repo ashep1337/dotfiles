@@ -1,0 +1,24 @@
+[Print Settings]
+lpr-commandline=lpr
+printer=Canon-TR8600
+collate=false
+cups-job-sheets=none,none
+default-source=Auto
+cups-Duplex=None
+duplex=simplex
+cups-PrintQuality=0
+cups-job-priority=50
+cups-number-up=1
+resolution-x=600
+cover-before=none
+cups-Resolution=600dpi
+cups-InputSlot=Auto
+print-at-time=
+resolution-y=600
+resolution=600
+cover-after=none
+print-at=now
+cups-PwgRasterDocumentType=Rgb_8
+cups-MediaType=plain
+media-type=plain
+cups-CNGrayscale=False

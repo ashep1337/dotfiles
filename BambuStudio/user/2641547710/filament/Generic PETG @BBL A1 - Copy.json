@@ -1,0 +1,39 @@
+{
+    "default_filament_colour": [
+        "#21FFFF"
+    ],
+    "eng_plate_temp": [
+        "68"
+    ],
+    "eng_plate_temp_initial_layer": [
+        "68"
+    ],
+    "filament_cost": [
+        "350"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_settings_id": [
+        "Generic PETG @BBL A1 - Copy"
+    ],
+    "from": "User",
+    "hot_plate_temp": [
+        "75"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "75"
+    ],
+    "inherits": "Generic PETG @BBL A1",
+    "name": "Generic PETG @BBL A1 - Copy",
+    "nozzle_temperature_range_high": [
+        "260"
+    ],
+    "textured_plate_temp": [
+        "79"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "79"
+    ],
+    "version": "2.4.0.7"
+}

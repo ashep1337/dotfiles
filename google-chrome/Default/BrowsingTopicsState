@@ -1,0 +1,71 @@
+{
+   "epochs": [ {
+      "calculation_time": "13409122518676625",
+      "config_version": 2,
+      "model_version": "5",
+      "padded_top_topics_start_index": 0,
+      "taxonomy_version": 2,
+      "top_topics_and_observing_domains": [ {
+         "hashed_domains": [  ],
+         "topic": 436
+      }, {
+         "hashed_domains": [  ],
+         "topic": 173
+      }, {
+         "hashed_domains": [  ],
+         "topic": 574
+      }, {
+         "hashed_domains": [  ],
+         "topic": 355
+      }, {
+         "hashed_domains": [  ],
+         "topic": 524
+      } ]
+   }, {
+      "calculation_time": "13409899634882155",
+      "config_version": 2,
+      "model_version": "5",
+      "padded_top_topics_start_index": 2,
+      "taxonomy_version": 2,
+      "top_topics_and_observing_domains": [ {
+         "hashed_domains": [ "-6159119865117661172", "-5746349147573764312", "2680024421218755705", "7402289290552482564" ],
+         "topic": 81
+      }, {
+         "hashed_domains": [ "-6159119865117661172", "-5746349147573764312", "2680024421218755705", "7402289290552482564" ],
+         "topic": 82
+      }, {
+         "hashed_domains": [  ],
+         "topic": 31
+      }, {
+         "hashed_domains": [  ],
+         "topic": 364
+      }, {
+         "hashed_domains": [  ],
+         "topic": 436
+      } ]
+   }, {
+      "calculation_time": "13410734000795845",
+      "config_version": 2,
+      "model_version": "5",
+      "padded_top_topics_start_index": 0,
+      "taxonomy_version": 2,
+      "top_topics_and_observing_domains": [ {
+         "hashed_domains": [  ],
+         "topic": 598
+      }, {
+         "hashed_domains": [  ],
+         "topic": 321
+      }, {
+         "hashed_domains": [  ],
+         "topic": 399
+      }, {
+         "hashed_domains": [  ],
+         "topic": 480
+      }, {
+         "hashed_domains": [  ],
+         "topic": 20
+      } ]
+   } ],
+   "hex_encoded_hmac_key": "935A0271827C2894DB1F0950903047E72273BCDFF762B7F1641AA85B4126FF26",
+   "next_scheduled_calculation_time": "13411338800962556"
+}

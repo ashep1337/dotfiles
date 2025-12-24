@@ -1,0 +1,25 @@
+{
+	"windowstate": {
+		"isFullScreen": false,
+		"isMaximized": false,
+		"width": 1766,
+		"height": 1392,
+		"x": 3,
+		"y": 3,
+		"frame": true,
+		"screenLayout": "0:0:2560:1440",
+		"backgroundColor": "rgb(31, 39, 42)"
+	},
+	"workspaces": [
+		{
+			"x": 3,
+			"y": 3,
+			"width": 1766,
+			"height": 1392,
+			"isMaximized": false,
+			"isFullScreen": false,
+			"file": "/home/ashep/Arduino/Stock_scroller_with_webUI_ESPS3",
+			"time": 1766462585481
+		}
+	]
+}

@@ -1,0 +1,22 @@
+{
+    "deretraction_speed": [
+        "40"
+    ],
+    "from": "User",
+    "inherits": "Bambu Lab X1 Carbon 0.4 nozzle",
+    "name": "Bambu Lab X1 Carbon 0.4 nozzle - Copy",
+    "printer_extruder_id": [
+        "1"
+    ],
+    "printer_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "printer_settings_id": "Bambu Lab X1 Carbon 0.4 nozzle - Copy",
+    "retraction_length": [
+        "0.9"
+    ],
+    "retraction_speed": [
+        "40"
+    ],
+    "version": "2.1.0.19"
+}
