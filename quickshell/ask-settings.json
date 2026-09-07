@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/ashep/dev/claude/**)",
+      "Glob(//home/ashep/dev/claude/**)",
+      "Grep(//home/ashep/dev/claude/**)",
+      "Edit(//home/ashep/dev/claude/**)",
+      "Write(//home/ashep/dev/claude/**)",
+      "NotebookEdit(//home/ashep/dev/claude/**)"
+    ]
+  }
+}

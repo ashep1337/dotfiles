@@ -37,8 +37,15 @@
     "fallback": ""
   },
   {
-  "icon": "signal-desktop",
-  "fallback": "",
-  "command": "signal-desktop"
+    "icon": "signal-desktop",
+    "fallback": "󰭹",
+    "command": "signal-desktop",
+    "notify": "Signal",
+    "class": "signal"
+  },
+  {
+    "icon": "org.mozilla.Thunderbird",
+    "fallback": "󰇮",
+    "command": "thunderbird"
   }
 ]

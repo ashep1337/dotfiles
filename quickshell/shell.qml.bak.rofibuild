@@ -1,0 +1,1400 @@
+import Quickshell
+import Quickshell.Wayland
+import Quickshell.Io
+import Quickshell.Hyprland
+import QtQuick
+import QtQuick.Layouts
+
+ShellRoot {
+    id: root
+
+    // ── Theme ─────────────────────────────────────────────────────────
+    property color colPurple: "#37006c"
+    property color colPurpleBorder: "#37006c"
+    property color colPurpleGlow: "#5a1a9a"
+    property color colFg: "#e0def4"
+    property color colFgDim: "#908caa"
+    property color colBarBg: "#000000"
+    property color colWidgetBg: "#1a1a2e80"
+    property color colHover: "#2a0050"
+    property color colRed: "#f7768e"
+    property color colGreen: "#a6e3a1"
+
+    // Opaque popup surfaces (no alpha channel — menus are solid black)
+    property color colPopupBg: "#000000"
+    property color colPopupInset: "#141422"
+    property color colPopupHover: "#1c0035"
+
+    property string fontFamily: "JetBrainsMono Nerd Font"
+    property int fontSize: 14
+    property int barHeight: 42
+    property int widgetRadius: 8
+    property int borderWidth: 2
+    property int iconSize: 22
+
+    // Popup geometry — right edges stay pinned relative to the bar's right side
+    property int netPopupWidth: 320
+    property int volPopupWidth: 250
+    property int powerPopupWidth: 170
+    property int calPopupWidth: 268
+
+    // ── Shared state ──────────────────────────────────────────────────
+    property string currentTime: ""
+    property string currentDate: ""
+    property string networkStatus: ""
+    property string networkName: ""
+    property int volumePercent: 0
+    property bool volumeMuted: false
+    property string activePopup: ""
+    property var launcherItems: []
+
+    function togglePopup(name) {
+        if (root.activePopup === name) {
+            root.activePopup = ""
+        } else {
+            root.activePopup = name
+        }
+    }
+
+    // ── Load launchers from JSON ──────────────────────────────────────
+    Process {
+        id: launcherLoader
+        command: ["cat", Qt.resolvedUrl("launchers.json").toString().replace("file://", "")]
+        running: true
+        stdout: SplitParser {
+            splitMarker: ""
+            onRead: data => {
+                try {
+                    root.launcherItems = JSON.parse(data.trim())
+                } catch (e) {
+                    console.error("Failed to parse launchers.json:", e)
+                }
+            }
+        }
+    }
+
+    // ── Network interfaces list ───────────────────────────────────────
+    property var networkInterfaces: []
+
+    Process {
+        id: netListProc
+        command: ["sh", "-c", "nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device | grep -v '^lo'"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                var line = data.trim()
+                if (line === "") return
+                var parts = line.split(":")
+                if (parts.length >= 4) {
+                    var iface = {
+                        "device": parts[0],
+                        "type": parts[1],
+                        "state": parts[2],
+                        "connection": parts[3] || "—"
+                    }
+                    var current = root.networkInterfaces.slice()
+                    current.push(iface)
+                    root.networkInterfaces = current
+                }
+            }
+        }
+    }
+
+    // ── Per-interface detail drill-down ───────────────────────────────
+    property string selectedIface: ""
+    property var ifaceDetail: ({})
+    property var ifaceDetailPairs: root.buildDetailPairs(root.ifaceDetail)
+
+    function selectIface(dev) {
+        if (root.selectedIface === dev) {
+            root.selectedIface = ""
+            root.ifaceDetail = ({})
+            return
+        }
+        root.selectedIface = dev
+        root.ifaceDetail = ({})
+        ifaceDetailProc.running = false
+        ifaceDetailProc.command = ["sh", "-c",
+            "nmcli -t -f GENERAL.STATE,GENERAL.HWADDR,GENERAL.MTU,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,IP6.ADDRESS device show " + dev]
+        ifaceDetailProc.running = true
+    }
+
+    // Turns the accumulated key/value map into an ordered label/value list
+    function buildDetailPairs(d) {
+        var out = []
+        if (!d) return out
+        if (d["IP4.ADDRESS"])  out.push({ "k": "IPv4",    "v": d["IP4.ADDRESS"] })
+        if (d["IP4.GATEWAY"])  out.push({ "k": "Gateway", "v": d["IP4.GATEWAY"] })
+        if (d["IP4.DNS"])      out.push({ "k": "DNS",     "v": d["IP4.DNS"] })
+        if (d["IP6.ADDRESS"])  out.push({ "k": "IPv6",    "v": d["IP6.ADDRESS"] })
+        if (d["GENERAL.HWADDR"]) out.push({ "k": "MAC",   "v": d["GENERAL.HWADDR"] })
+        if (d["GENERAL.MTU"])  out.push({ "k": "MTU",     "v": d["GENERAL.MTU"] })
+        if (d["GENERAL.STATE"]) out.push({ "k": "State",  "v": d["GENERAL.STATE"] })
+        return out
+    }
+
+    Process {
+        id: ifaceDetailProc
+        stdout: SplitParser {
+            onRead: data => {
+                var line = data.trim()
+                if (line === "") return
+
+                // nmcli -t escapes colons inside values as "\:" — split on the
+                // first UNescaped colon so MAC addresses survive intact.
+                var m = line.match(/^((?:[^:\\]|\\.)+):(.*)$/)
+                if (!m) return
+
+                var key = m[1].replace(/\[\d+\]/g, "")   // IP4.ADDRESS[1] -> IP4.ADDRESS
+                var val = m[2].replace(/\\:/g, ":").trim()
+                if (val === "" || val === "--") return
+
+                var d = {}
+                for (var k in root.ifaceDetail) d[k] = root.ifaceDetail[k]
+                // Multiple DNS / address entries collapse onto one line
+                d[key] = d[key] ? (d[key] + ", " + val) : val
+                root.ifaceDetail = d
+            }
+        }
+    }
+
+    // ── Calendar state ────────────────────────────────────────────────
+    property date calRef: new Date()
+    property int calEpoch: 0          // bumped at midnight so "today" restyles
+    property var calCells: root.buildCalendar(root.calRef, root.calEpoch)
+    readonly property var calDayNames: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+    function buildCalendar(ref, epoch) {
+        var year = ref.getFullYear()
+        var month = ref.getMonth()
+        var now = new Date()
+        var startDow = new Date(year, month, 1).getDay()
+        var daysInMonth = new Date(year, month + 1, 0).getDate()
+
+        var cells = []
+        for (var i = 0; i < startDow; i++) {
+            cells.push({ "day": 0, "current": false, "isToday": false })
+        }
+        for (var d = 1; d <= daysInMonth; d++) {
+            cells.push({
+                "day": d,
+                "current": true,
+                "isToday": (d === now.getDate() && month === now.getMonth() && year === now.getFullYear())
+            })
+        }
+        while (cells.length % 7 !== 0) {
+            cells.push({ "day": 0, "current": false, "isToday": false })
+        }
+        return cells
+    }
+
+    function calShift(delta) {
+        root.calRef = new Date(root.calRef.getFullYear(), root.calRef.getMonth() + delta, 1)
+    }
+
+    function calToday() {
+        root.calRef = new Date()
+    }
+
+    onCurrentDateChanged: root.calEpoch = root.calEpoch + 1
+
+    // ── Volume control ────────────────────────────────────────────────
+    // While the knob is held, volumeDragging suppresses the 3s poll so the
+    // handle can't be yanked backwards by a stale reading mid-gesture.
+    property bool volumeDragging: false
+    property int volumeDragPercent: 0
+    property int volumePending: -1
+    readonly property int volumeDisplay: root.volumeDragging ? root.volumeDragPercent : root.volumePercent
+
+    Process { id: volSetProc }
+
+    function applyVolume(v) {
+        volSetProc.running = false
+        volSetProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", v + "%"]
+        volSetProc.running = true
+    }
+
+    // Leaky bucket: fire immediately, then at most one write per interval.
+    // Without this a single drag spawns a few hundred wpctl processes.
+    function requestVolume(pct) {
+        var v = Math.max(0, Math.min(100, Math.round(pct)))
+        root.volumeDragPercent = v
+        if (volThrottle.running) {
+            root.volumePending = v
+            return
+        }
+        root.applyVolume(v)
+        volThrottle.start()
+    }
+
+    Timer {
+        id: volThrottle
+        interval: 60
+        repeat: false
+        onTriggered: {
+            if (root.volumePending >= 0) {
+                root.applyVolume(root.volumePending)
+                root.volumePending = -1
+                volThrottle.start()
+            }
+        }
+    }
+
+    function nudgeVolume(delta) {
+        root.requestVolume(root.volumeDisplay + delta)
+        root.volumePercent = Math.max(0, Math.min(100, root.volumeDisplay + delta))
+    }
+
+    // ── Processes ─────────────────────────────────────────────────────
+    Process {
+        id: timeProc
+        command: ["date", "+%I:%M %p"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => root.currentTime = data.trim()
+        }
+    }
+
+    Process {
+        id: dateProc
+        command: ["date", "+%a, %b %d %Y"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => root.currentDate = data.trim()
+        }
+    }
+
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            timeProc.running = true
+            dateProc.running = true
+        }
+    }
+
+    Process {
+        id: netProc
+        command: ["sh", "-c", "nmcli -t -f TYPE,STATE,CONNECTION device | grep -m1 connected || echo 'none:disconnected:None'"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                var parts = data.trim().split(":")
+                if (parts.length >= 3) {
+                    root.networkName = parts[2] || "None"
+                    root.networkStatus = parts[1] || "disconnected"
+                } else {
+                    root.networkName = "None"
+                    root.networkStatus = "disconnected"
+                }
+            }
+        }
+    }
+
+    Process {
+        id: volProc
+        command: ["sh", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%d %s\", $2*100, ($3==\"[MUTED]\"?\"muted\":\"unmuted\")}'"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                var parts = data.trim().split(" ")
+                // Mute state always tracks; the level is held while dragging.
+                root.volumeMuted = (parts[1] === "muted")
+                if (!root.volumeDragging) {
+                    root.volumePercent = parseInt(parts[0]) || 0
+                }
+            }
+        }
+    }
+
+    Timer {
+        interval: 3000
+        running: true
+        repeat: true
+        onTriggered: {
+            netProc.running = true
+            volProc.running = true
+        }
+    }
+
+    onActivePopupChanged: {
+        if (root.activePopup === "network") {
+            root.networkInterfaces = []
+            root.selectedIface = ""
+            root.ifaceDetail = ({})
+            netListProc.running = true
+        } else if (root.activePopup === "volume") {
+            volProc.running = true
+        } else if (root.activePopup === "calendar") {
+            root.calToday()
+        }
+    }
+
+    // ── Shared processes ──────────────────────────────────────────────
+    Process { id: rofiLaunch;    command: ["sh", "-c", "~/.config/rofi/launchers/misc/launcher.sh"] }
+    Process { id: volToggleProc; command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] }
+    Process { id: lockProc;      command: ["hyprlock"] }
+    Process { id: sleepProc;     command: ["systemctl", "suspend"] }
+    Process { id: rebootProc;    command: ["systemctl", "reboot"] }
+    Process { id: shutProc;      command: ["systemctl", "poweroff"] }
+
+    // ── Bar on every screen ──────────────────────────────────────────
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: barWindow
+            property var modelData
+            screen: modelData
+
+            anchors {
+                bottom: true
+                left: true
+                right: true
+            }
+            implicitHeight: root.barHeight
+            color: root.colBarBg
+
+            // ── Click-outside overlay to dismiss popups ──────────────
+            MouseArea {
+                anchors.fill: parent
+                enabled: root.activePopup !== ""
+                z: 1
+                onClicked: root.activePopup = ""
+            }
+
+            // ── Network popup ────────────────────────────────────────
+            PopupWindow {
+                id: networkPopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 180 - root.netPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.netPopupWidth
+                implicitHeight: netIfaceCol.implicitHeight + 24
+                visible: root.activePopup === "network"
+                color: "transparent"
+
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "network") {
+                        root.activePopup = ""
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Column {
+                        id: netIfaceCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 4
+                        width: parent.width - 16
+
+                        Text {
+                            text: "󰛳  Network Interfaces"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                            width: parent.width
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+
+                        Repeater {
+                            model: root.networkInterfaces
+
+                            Rectangle {
+                                id: ifaceRow
+                                required property var modelData
+                                required property int index
+                                readonly property bool expanded: root.selectedIface === ifaceRow.modelData.device
+
+                                width: netIfaceCol.width
+                                height: ifaceRowCol.implicitHeight + 14
+                                radius: 6
+                                color: ifaceRow.expanded ? root.colPopupHover
+                                                         : (ifaceMa.containsMouse ? root.colHover : "transparent")
+
+                                Column {
+                                    id: ifaceRowCol
+                                    x: 6
+                                    y: 7
+                                    width: parent.width - 12
+                                    spacing: 6
+
+                                    // ── Row header ───────────────────
+                                    Row {
+                                        width: parent.width
+                                        spacing: 8
+
+                                        Rectangle {
+                                            width: 8
+                                            height: 8
+                                            radius: 4
+                                            color: ifaceRow.modelData.state === "connected" ? root.colGreen : root.colFgDim
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+
+                                        Column {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - 40
+
+                                            Text {
+                                                text: ifaceRow.modelData.device
+                                                color: root.colFg
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                            }
+                                            Text {
+                                                text: ifaceRow.modelData.connection + " (" + ifaceRow.modelData.type + ")"
+                                                color: root.colFgDim
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 10
+                                                width: parent.width
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        Text {
+                                            text: ifaceRow.expanded ? "󰅃" : "󰅀"
+                                            color: root.colPurpleGlow
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+
+                                    // ── Expanded detail ──────────────
+                                    Column {
+                                        visible: ifaceRow.expanded
+                                        width: parent.width
+                                        spacing: 3
+
+                                        Rectangle {
+                                            width: parent.width
+                                            height: 1
+                                            color: root.colPurpleBorder
+                                            opacity: 0.35
+                                        }
+
+                                        Repeater {
+                                            model: root.ifaceDetailPairs
+
+                                            Row {
+                                                required property var modelData
+                                                width: ifaceRowCol.width
+                                                spacing: 6
+
+                                                Text {
+                                                    text: modelData.k
+                                                    color: root.colFgDim
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    width: 54
+                                                }
+                                                Text {
+                                                    text: modelData.v
+                                                    color: root.colFg
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    width: ifaceRowCol.width - 60
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            visible: root.ifaceDetailPairs.length === 0
+                                            text: "Reading interface..."
+                                            color: root.colFgDim
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: ifaceMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.selectIface(ifaceRow.modelData.device)
+                                }
+                            }
+                        }
+
+                        Text {
+                            visible: root.networkInterfaces.length === 0
+                            text: "Scanning..."
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 12
+                            topPadding: 8
+                        }
+                    }
+                }
+            }
+
+            // ── Calendar popup ───────────────────────────────────────
+            PopupWindow {
+                id: calendarPopup
+                anchor.window: barWindow
+                anchor.rect.x: Math.round((barWindow.width - root.calPopupWidth) / 2)
+                anchor.rect.y: 0
+                implicitWidth: root.calPopupWidth
+                implicitHeight: calCol.implicitHeight + 24
+                visible: root.activePopup === "calendar"
+                color: "transparent"
+
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "calendar") {
+                        root.activePopup = ""
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Column {
+                        id: calCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 6
+                        width: parent.width - 20
+
+                        // ── Month header with navigation ──────────────
+                        Row {
+                            width: parent.width
+                            spacing: 4
+
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 6
+                                color: calPrevMa.containsMouse ? root.colHover : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅁"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: calPrevMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calShift(-1)
+                                }
+                            }
+
+                            Item {
+                                width: parent.width - 60
+                                height: 26
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Qt.formatDate(root.calRef, "MMMM yyyy")
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calToday()   // jump back to current month
+                                }
+                            }
+
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 6
+                                color: calNextMa.containsMouse ? root.colHover : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅂"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: calNextMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calShift(1)
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+
+                        // ── Day-of-week header ───────────────────────
+                        Grid {
+                            columns: 7
+                            spacing: 2
+                            width: parent.width
+
+                            Repeater {
+                                model: root.calDayNames
+
+                                Item {
+                                    required property var modelData
+                                    width: Math.floor((calCol.width - 12) / 7)
+                                    height: 18
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: root.colFgDim
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Day grid ─────────────────────────────────
+                        Grid {
+                            columns: 7
+                            spacing: 2
+                            width: parent.width
+
+                            Repeater {
+                                model: root.calCells
+
+                                Rectangle {
+                                    id: dayCell
+                                    required property var modelData
+                                    width: Math.floor((calCol.width - 12) / 7)
+                                    height: 26
+                                    radius: 5
+                                    color: dayCell.modelData.isToday ? root.colPurple : "transparent"
+                                    border.color: dayCell.modelData.isToday ? root.colPurpleGlow : "transparent"
+                                    border.width: dayCell.modelData.isToday ? 1 : 0
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: dayCell.modelData.current
+                                        text: dayCell.modelData.day
+                                        color: dayCell.modelData.isToday ? root.colFg : root.colFgDim
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.bold: dayCell.modelData.isToday
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+
+                        Text {
+                            text: root.currentDate + "  ·  " + root.currentTime
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                }
+            }
+
+            // ── Volume popup ─────────────────────────────────────────
+            PopupWindow {
+                id: volumePopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 90 - root.volPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.volPopupWidth
+                implicitHeight: volPopupCol.implicitHeight + 24
+                visible: root.activePopup === "volume"
+                color: "transparent"
+
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "volume") {
+                        root.activePopup = ""
+                    }
+                    if (!visible) {
+                        root.volumeDragging = false
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Column {
+                        id: volPopupCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 10
+                        width: parent.width - 16
+
+                        Text {
+                            text: "󰕾  Volume"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+
+                        // ── Draggable slider ─────────────────────────
+                        Item {
+                            width: parent.width
+                            height: 26
+
+                            Rectangle {
+                                id: sliderTrack
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: 8
+                                radius: 4
+                                color: root.colPopupInset
+
+                                Rectangle {
+                                    id: sliderFill
+                                    width: sliderTrack.width * (root.volumeDisplay / 100)
+                                    height: parent.height
+                                    radius: 4
+                                    color: root.volumeMuted ? root.colFgDim : root.colPurpleGlow
+                                }
+
+                                Rectangle {
+                                    id: sliderKnob
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    x: Math.max(0, Math.min(sliderTrack.width - width,
+                                                            sliderTrack.width * (root.volumeDisplay / 100) - width / 2))
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: root.volumeMuted ? root.colFgDim : root.colFg
+                                    border.color: root.colPurpleBorder
+                                    border.width: 2
+                                    scale: (sliderMa.containsMouse || root.volumeDragging) ? 1.15 : 1.0
+
+                                    Behavior on scale {
+                                        NumberAnimation { duration: 80 }
+                                    }
+                                }
+
+                                // Taller than the 8px track so the grab target
+                                // is a comfortable 26px without a fat groove.
+                                MouseArea {
+                                    id: sliderMa
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                    height: 26
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+
+                                    function percentAt(x) {
+                                        return (x / sliderTrack.width) * 100
+                                    }
+
+                                    onPressed: mouse => {
+                                        root.volumeDragging = true
+                                        root.requestVolume(percentAt(mouse.x))
+                                    }
+                                    onPositionChanged: mouse => {
+                                        if (root.volumeDragging) {
+                                            root.requestVolume(percentAt(mouse.x))
+                                        }
+                                    }
+                                    onReleased: mouse => {
+                                        var v = Math.max(0, Math.min(100, Math.round(percentAt(mouse.x))))
+                                        root.applyVolume(v)
+                                        root.volumePercent = v
+                                        root.volumeDragging = false
+                                        root.volumePending = -1
+                                        volProc.running = true
+                                    }
+                                    onCanceled: {
+                                        root.volumeDragging = false
+                                        root.volumePending = -1
+                                        volProc.running = true
+                                    }
+                                    onWheel: wheel => {
+                                        root.nudgeVolume(wheel.angleDelta.y > 0 ? 5 : -5)
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Readout + mute ───────────────────────────
+                        Row {
+                            width: parent.width
+                            spacing: 10
+
+                            Text {
+                                text: root.volumeDisplay + "%"
+                                color: root.volumeMuted ? root.colFgDim : root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 18
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Item { width: 10; height: 1 }
+
+                            Rectangle {
+                                width: muteBtnRow.implicitWidth + 16
+                                height: 28
+                                radius: 6
+                                color: muteMa.containsMouse ? root.colHover : "transparent"
+                                border.color: root.colPurpleBorder
+                                border.width: 1
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Row {
+                                    id: muteBtnRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    Text {
+                                        text: root.volumeMuted ? "󰖁" : "󰕾"
+                                        color: root.volumeMuted ? root.colRed : root.colFg
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 13
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: root.volumeMuted ? "Unmute" : "Mute"
+                                        color: root.colFg
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: muteMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        volToggleProc.running = true
+                                        volProc.running = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Power popup ──────────────────────────────────────────
+            PopupWindow {
+                id: powerPopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 8 - root.powerPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.powerPopupWidth
+                implicitHeight: 184
+                visible: root.activePopup === "power"
+                color: "transparent"
+
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "power") {
+                        root.activePopup = ""
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        width: parent.width - 16
+
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: lockMa.containsMouse ? root.colHover : "transparent"
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+
+                                Text {
+                                    text: ""
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Lock"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: lockMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    lockProc.running = true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: sleepMa.containsMouse ? root.colHover : "transparent"
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+
+                                Text {
+                                    text: "󰤄"
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Sleep"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: sleepMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    sleepProc.running = true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: rebootMa.containsMouse ? root.colHover : "transparent"
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+
+                                Text {
+                                    text: ""
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Reboot"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: rebootMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    rebootProc.running = true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: shutMa.containsMouse ? root.colHover : "transparent"
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+
+                                Text {
+                                    text: "⏻"
+                                    color: root.colRed
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Shutdown"
+                                    color: root.colRed
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: shutMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    shutProc.running = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Main bar layout ──────────────────────────────────────
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
+                spacing: 6
+                z: 2
+
+                // ═════════════════════════════════════════════════════
+                //  LEFT: Rofi (Arch logo) + Dynamic app launchers
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: rofiMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Item {
+                        anchors.centerIn: parent
+                        width: root.iconSize
+                        height: root.iconSize
+
+                        Image {
+                            id: rofiIcon
+                            anchors.fill: parent
+                            source: "image://icon/archlinux-logo"
+                            sourceSize.width: root.iconSize
+                            sourceSize.height: root.iconSize
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰣇"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 20
+                            visible: rofiIcon.status !== Image.Ready
+                        }
+                    }
+
+                    MouseArea {
+                        id: rofiMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rofiLaunch.running = true
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 22
+                    color: root.colPurpleBorder
+                    opacity: 0.4
+                }
+
+                // ── Dynamic launcher buttons from launchers.json ─────
+                Repeater {
+                    model: root.launcherItems
+
+                    Rectangle {
+                        required property var modelData
+                        required property int index
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        radius: root.widgetRadius
+                        color: launcherMa.containsMouse ? root.colHover : "transparent"
+                        border.width: 0
+
+                        Item {
+                            anchors.centerIn: parent
+                            width: root.iconSize
+                            height: root.iconSize
+
+                            Image {
+                                id: launcherIcon
+                                anchors.fill: parent
+                                source: "image://icon/" + modelData.icon
+                                sourceSize.width: root.iconSize
+                                sourceSize.height: root.iconSize
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.fallback
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 16
+                                visible: launcherIcon.status !== Image.Ready
+                            }
+                        }
+
+                        MouseArea {
+                            id: launcherMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                launcherProcess.command = ["sh", "-c", modelData.command]
+                                launcherProcess.running = true
+                            }
+                        }
+
+                        Process {
+                            id: launcherProcess
+                        }
+                    }
+                }
+
+                // ═════════════════════════════════════════════════════
+                Item { Layout.fillWidth: true }
+
+                // ═════════════════════════════════════════════════════
+                //  CENTER: Time & Date (12hr) — click for calendar
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: clockRow.implicitWidth + 24
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: clockMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Row {
+                        id: clockRow
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        Text {
+                            text: "  " + root.currentTime
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Rectangle {
+                            width: 1
+                            height: 18
+                            color: root.colPurpleBorder
+                            opacity: 0.5
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.currentDate
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: clockMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("calendar")
+                    }
+                }
+
+                // ═════════════════════════════════════════════════════
+                Item { Layout.fillWidth: true }
+
+                // ═════════════════════════════════════════════════════
+                //  RIGHT: Network, Volume, Power
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: netRow.implicitWidth + 20
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: netMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Row {
+                        id: netRow
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        Text {
+                            text: root.networkStatus === "connected" ? "󰤨" : "󰤭"
+                            color: root.networkStatus === "connected" ? root.colPurpleGlow : root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.networkName
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: netMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("network")
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: volRow.implicitWidth + 20
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: volMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Row {
+                        id: volRow
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        Text {
+                            text: root.volumeMuted ? "󰖁" : (root.volumeDisplay > 50 ? "󰕾" : (root.volumeDisplay > 0 ? "󰖀" : "󰕿"))
+                            color: root.volumeMuted ? root.colFgDim : root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.volumeDisplay + "%"
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: volMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("volume")
+                        onWheel: wheel => root.nudgeVolume(wheel.angleDelta.y > 0 ? 5 : -5)
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 22
+                    color: root.colPurpleBorder
+                    opacity: 0.4
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: powerMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "⏻"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 16
+                    }
+
+                    MouseArea {
+                        id: powerMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("power")
+                    }
+                }
+            }
+        }
+    }
+}
