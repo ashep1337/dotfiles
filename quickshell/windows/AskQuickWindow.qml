@@ -110,7 +110,12 @@ FloatingWindow {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: quickInput.text === ""
-                            text: Ask.busy ? "Thinking... (esc cancels)" : "Ask a quick question..."
+                            text: {
+                                if (Ask.thinking) return "Thinking... (esc cancels)"
+                                if (Ask.activeTool !== "") return "Running " + Ask.activeTool + "... (esc cancels)"
+                                if (Ask.busy) return "Responding... (esc cancels)"
+                                return "Ask a quick question..."
+                            }
                             color: Theme.colFgDim
                             font.family: Theme.fontFamily
                             font.pixelSize: 14
@@ -140,6 +145,17 @@ FloatingWindow {
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
                         wrapMode: Text.Wrap
+                    }
+                    // One compact row per tool, so a quick question that ends
+                    // up running something still shows what it did.
+                    Repeater {
+                        model: Ask.transcript
+                        ToolCallCard {
+                            required property var modelData
+                            visible: modelData.kind === "tool"
+                            width: quickBody.width
+                            entry: modelData
+                        }
                     }
                     // TextEdit rather than Text so the reply can be selected
                     // and copied with the mouse.

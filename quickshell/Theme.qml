@@ -25,6 +25,9 @@ Singleton {
     // ── Type ──────────────────────────────────────────────────────────
     property string fontFamily: "JetBrainsMono Nerd Font"
     property int fontSize: 14
+    // The Signal messenger's type. Everything in the thread and the
+    // conversation list is sized relative to this one value.
+    property int chatFontSize: 14
 
     // ── Metrics ───────────────────────────────────────────────────────
     property int barHeight: 42

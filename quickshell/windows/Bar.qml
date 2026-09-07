@@ -163,7 +163,7 @@ PanelWindow {
         Item { Layout.fillWidth: true }
 
         // ═════════════════════════════════════════════════════════════
-        //  RIGHT: Mail, Ask, Tray, Network, Volume, Power
+        //  RIGHT: Mail, Ask, Signal, Tray, Network, Volume, Power
         // ═════════════════════════════════════════════════════════════
         BarButton {
             Layout.preferredWidth: mailRow.implicitWidth + 20
@@ -208,6 +208,41 @@ PanelWindow {
                 color: Ask.busy ? Theme.colGreen : Theme.colPurpleGlow
                 font.family: Theme.fontFamily
                 font.pixelSize: 16
+            }
+        }
+
+        BarButton {
+            Layout.preferredWidth: signalRow.implicitWidth + 20
+            active: Signal.open
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                // Right-click restarts the signal-cli child, for when the
+                // connection has gone stale.
+                if (mouse.button === Qt.RightButton) Signal.reconnect()
+                else Signal.toggle()
+            }
+            Row {
+                id: signalRow
+                anchors.centerIn: parent
+                spacing: 6
+                Text {
+                    text: "󰍡"
+                    color: Signal.status === "error" ? Theme.colRed
+                         : (Signal.unreadTotal > 0 ? Theme.colPurpleGlow
+                                                   : (Signal.online ? Theme.colFg
+                                                                    : Theme.colFgDim))
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 16
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    visible: Signal.unreadTotal > 0
+                    text: Signal.unreadTotal
+                    color: Theme.colFg
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 1
+                    anchors.verticalCenter: parent.verticalCenter
+                }
             }
         }
 

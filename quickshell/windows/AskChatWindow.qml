@@ -74,19 +74,65 @@ FloatingWindow {
                 model: Ask.transcript
                 boundsBehavior: Flickable.StopAtBounds
                 onCountChanged: chatList.positionViewAtEnd()
+
+                // The reply grows a character at a time, so following the tail
+                // needs the text as a trigger, not just new transcript rows.
+                Connections {
+                    target: Ask
+                    function onStreamTextChanged() { chatList.positionViewAtEnd() }
+                }
+
                 delegate: Column {
+                    id: entry
                     required property var modelData
                     width: chatList.width
                     spacing: 3
+
                     Text {
-                        text: modelData.role === "you" ? "you" : "claude"
-                        color: modelData.role === "you" ? Theme.colFgDim : Theme.colPurpleGlow
+                        visible: entry.modelData.kind === "text"
+                        text: entry.modelData.role === "you" ? "you" : "claude"
+                        color: entry.modelData.role === "you" ? Theme.colFgDim : Theme.colPurpleGlow
                         font.family: Theme.fontFamily
                         font.pixelSize: 10
                         font.bold: true
                     }
                     TextEdit {
-                        text: modelData.text
+                        visible: entry.modelData.kind === "text"
+                        text: entry.modelData.text || ""
+                        color: Theme.colFg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        width: parent.width
+                        readOnly: true
+                        selectByMouse: true
+                        selectionColor: Theme.colPurple
+                        selectedTextColor: Theme.colFg
+                        wrapMode: TextEdit.Wrap
+                        textFormat: TextEdit.PlainText
+                    }
+                    ToolCallCard {
+                        visible: entry.modelData.kind === "tool"
+                        width: parent.width
+                        entry: entry.modelData
+                    }
+                }
+
+                // The turn in flight. Kept out of the model so each delta is a
+                // text update rather than a rebuild of the whole list.
+                footer: Column {
+                    width: chatList.width
+                    spacing: 3
+                    topPadding: Ask.streamText !== "" ? 12 : 0
+                    visible: Ask.streamText !== ""
+                    Text {
+                        text: "claude"
+                        color: Theme.colPurpleGlow
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+                    TextEdit {
+                        text: Ask.streamText
                         color: Theme.colFg
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
@@ -102,9 +148,16 @@ FloatingWindow {
             }
 
             Text {
-                visible: Ask.busy || Ask.errorText !== ""
+                visible: Ask.busy || Ask.errorText !== "" || Ask.lastCostUsd > 0
                 width: parent.width
-                text: Ask.busy ? "Thinking... (esc to cancel)" : Ask.errorText
+                text: {
+                    if (Ask.errorText !== "") return Ask.errorText
+                    if (Ask.thinking) return "Thinking... (esc to cancel)"
+                    if (Ask.activeTool !== "") return "Running " + Ask.activeTool + "... (esc to cancel)"
+                    if (Ask.busy) return "Responding... (esc to cancel)"
+                    return "$" + Ask.lastCostUsd.toFixed(4) + "  ·  "
+                           + (Ask.lastDurationMs / 1000).toFixed(1) + "s"
+                }
                 color: Ask.errorText !== "" ? Theme.colRed : Theme.colFgDim
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
