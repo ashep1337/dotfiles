@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import QtQuick
 import qs
 import qs.components
@@ -13,6 +14,20 @@ FloatingWindow {
     implicitWidth: 900
     implicitHeight: 700
     color: Theme.colPopupBg
+
+    // ── Click-outside dismissal ──────────────────────────────────────
+    // Focus-follows-mouse rules out closing on focus loss: the pointer merely
+    // crossing the border would count. A compositor-side grab clears on a
+    // button press outside the window instead, so drifting the mouse away
+    // leaves the window alone. That first click outside is spent on the
+    // dismissal and does not reach whatever was under it.
+    HyprlandFocusGrab {
+        active: mailReader.visible
+        windows: [mailReader]
+        // Hyprland clears the grab when we drop it too — after the window is
+        // already hidden — so re-check before acting on it.
+        onCleared: if (mailReader.visible) Gmail.closeBody()
+    }
 
     Rectangle {
         anchors.fill: parent

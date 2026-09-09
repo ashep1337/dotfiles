@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import Quickshell.Widgets
@@ -15,6 +16,7 @@ PanelWindow {
     id: barWindow
     property var modelData
     screen: modelData
+    readonly property string screenName: modelData ? modelData.name : ""
 
     anchors {
         bottom: true
@@ -42,11 +44,38 @@ PanelWindow {
 
     // ── Popups ───────────────────────────────────────────────────────
     // Each pins its own x against the bar's right edge; see PopupCard.
-    MailPopup     { barWindow: barWindow }
-    NetworkPopup  { barWindow: barWindow }
-    CalendarPopup { barWindow: barWindow }
-    VolumePopup   { barWindow: barWindow }
-    PowerPopup    { barWindow: barWindow }
+    MailPopup     { id: mailPopup;     barWindow: barWindow }
+    NetworkPopup  { id: networkPopup;  barWindow: barWindow }
+    CalendarPopup { id: calendarPopup; barWindow: barWindow }
+    VolumePopup   { id: volumePopup;   barWindow: barWindow }
+    PowerPopup    { id: powerPopup;    barWindow: barWindow }
+
+    // ── Click-outside dismissal ──────────────────────────────────────
+    // A PopupWindow never takes focus, so nothing tells it that a click landed
+    // somewhere else on the screen. The compositor-side grab does: while it
+    // holds, clicks still reach this bar and the open popup, and the first
+    // click anywhere else clears the grab instead of reaching what was under
+    // it. Being a grab rather than a focus watch is what makes this survive
+    // focus-follows-mouse — merely moving the pointer away does nothing.
+    readonly property var openPopup: {
+        if (Popups.screenName !== barWindow.screenName) return null
+        switch (Popups.active) {
+        case "mail":     return mailPopup
+        case "network":  return networkPopup
+        case "calendar": return calendarPopup
+        case "volume":   return volumePopup
+        case "power":    return powerPopup
+        }
+        return null
+    }
+
+    HyprlandFocusGrab {
+        active: barWindow.openPopup !== null
+        windows: barWindow.openPopup ? [barWindow, barWindow.openPopup] : []
+        // Hyprland also clears the grab when we drop it ourselves; closing an
+        // already-closed popup is harmless.
+        onCleared: Popups.close()
+    }
 
     // ── Main bar layout ──────────────────────────────────────────────
     RowLayout {
@@ -130,7 +159,7 @@ PanelWindow {
         // ═════════════════════════════════════════════════════════════
         BarButton {
             Layout.preferredWidth: clockRow.implicitWidth + 24
-            onClicked: Popups.toggle("calendar")
+            onClicked: Popups.toggle("calendar", barWindow.screenName)
             Row {
                 id: clockRow
                 anchors.centerIn: parent
@@ -173,7 +202,7 @@ PanelWindow {
                 // Right-click forces a refresh without waiting out the
                 // two-minute poll.
                 if (mouse.button === Qt.RightButton) Gmail.check()
-                else Popups.toggle("mail")
+                else Popups.toggle("mail", barWindow.screenName)
             }
             Row {
                 id: mailRow
@@ -301,7 +330,7 @@ PanelWindow {
 
         BarButton {
             Layout.preferredWidth: netRow.implicitWidth + 20
-            onClicked: Popups.toggle("network")
+            onClicked: Popups.toggle("network", barWindow.screenName)
             Row {
                 id: netRow
                 anchors.centerIn: parent
@@ -325,7 +354,7 @@ PanelWindow {
 
         BarButton {
             Layout.preferredWidth: volRow.implicitWidth + 20
-            onClicked: Popups.toggle("volume")
+            onClicked: Popups.toggle("volume", barWindow.screenName)
             onWheeled: wheel => Audio.nudge(wheel.angleDelta.y > 0 ? 5 : -5)
             Row {
                 id: volRow
@@ -353,7 +382,7 @@ PanelWindow {
 
         BarButton {
             Layout.preferredWidth: 36
-            onClicked: Popups.toggle("power")
+            onClicked: Popups.toggle("power", barWindow.screenName)
             Text {
                 anchors.centerIn: parent
                 text: "⏻"

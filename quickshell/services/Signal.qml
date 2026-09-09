@@ -331,7 +331,11 @@ Singleton {
         var who = c ? c.name : "Signal"
         var title = (c && c.kind === "group") ? (m.senderName + " · " + who) : who
         var body = m.text !== "" ? m.text : "󰈔 Attachment"
+        // The category is what mako matches on to tell this apart from the
+        // notification signal-desktop posts for the same message — both wear
+        // the name "Signal", and signal-desktop sets no category at all.
         Quickshell.execDetached(["notify-send", "-a", "Signal", "-i", "signal-desktop",
+                                 "-c", "signal-cli",
                                  "-h", "string:desktop-entry:signal", title, body])
     }
 

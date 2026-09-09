@@ -20,6 +20,11 @@ PopupWindow {
     // grows downward from the top.
     property bool centerContent: false
 
+    // The bar this card belongs to. Popups.screenName has to agree before it
+    // shows, or all three monitors would pop up their own copy.
+    readonly property string screenName:
+        (card.barWindow && card.barWindow.screen) ? card.barWindow.screen.name : ""
+
     readonly property alias contentWidth: col.width
     default property alias content: col.data
 
@@ -27,12 +32,14 @@ PopupWindow {
     anchor.rect.y: 0
     implicitHeight: col.implicitHeight + 24
     visible: Popups.active === card.popupName
+             && (Popups.screenName === "" || Popups.screenName === card.screenName)
     color: "transparent"
     // A dismissal that comes from the compositor rather than from a bar click
     // has to clear the shared state too, or the bar button stays highlighted.
     onVisibleChanged: {
-        if (!visible && Popups.active === card.popupName) {
-            Popups.active = ""
+        if (!visible && Popups.active === card.popupName
+                && Popups.screenName === card.screenName) {
+            Popups.close()
         }
     }
 
