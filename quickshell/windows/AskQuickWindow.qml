@@ -5,16 +5,16 @@ import qs
 import qs.components
 import qs.services
 
-// The small one-shot box: ask, read the answer, close. No session threading.
+// Compact view of the latest exchange in the shared Codex conversation.
 FloatingWindow {
     id: quickWindow
-    title: "Ask Claude"
+    title: "Ask Codex"
     visible: Ask.open && !Ask.chat
 
     // The body (question + answer) is measured at a fixed width, so its
     // height never depends on the window height — no binding loop.
     readonly property int baseHeight: 108
-    readonly property bool hasBody: Ask.lastQuestion !== "" || Ask.errorText !== ""
+    readonly property bool hasBody: Ask.lastQuestion !== "" || Ask.errorText !== "" || Ask.requests.length > 0
     readonly property int bodyHeight: hasBody
         ? Math.max(60, Math.min(quickBody.implicitHeight + 12, 560)) : 0
     readonly property int targetHeight: baseHeight + bodyHeight
@@ -52,8 +52,9 @@ FloatingWindow {
             anchors.margins: 12
             spacing: 8
 
-            Row {
+            Item {
                 width: parent.width
+                height: 24
                 Text {
                     text: "󰭹  Ask"
                     color: Theme.colPurpleGlow
@@ -62,10 +63,12 @@ FloatingWindow {
                     font.bold: true
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                Item { width: parent.width - 300; height: 1 }
-                AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
-                Item { width: 8; height: 1 }
-                AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
+                Row {
+                    anchors.right: parent.right
+                    spacing: 8
+                    AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
+                    AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
+                }
             }
 
             Rectangle {
@@ -108,12 +111,10 @@ FloatingWindow {
                             }
                             Keys.onTabPressed: Ask.setMode(true)
                             Keys.onReturnPressed: {
-                                Ask.send(quickInput.text)
-                                quickInput.text = ""
+                                if (Ask.send(quickInput.text)) quickInput.text = ""
                             }
                             Keys.onEnterPressed: {
-                                Ask.send(quickInput.text)
-                                quickInput.text = ""
+                                if (Ask.send(quickInput.text)) quickInput.text = ""
                             }
                             Keys.onPressed: event => {
                                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
@@ -126,10 +127,8 @@ FloatingWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: quickInput.text === ""
                             text: {
-                                if (Ask.thinking) return "Thinking... (esc cancels)"
-                                if (Ask.activeTool !== "") return "Running " + Ask.activeTool + "... (esc cancels)"
-                                if (Ask.busy) return "Responding... (esc cancels)"
-                                return "Ask a quick question..."
+                                if (Ask.busy) return Ask.statusText
+                                return "Ask Codex… (tab opens conversation)"
                             }
                             color: Theme.colFgDim
                             font.family: Theme.fontFamily
@@ -164,7 +163,7 @@ FloatingWindow {
                     // One compact row per tool, so a quick question that ends
                     // up running something still shows what it did.
                     Repeater {
-                        model: Ask.transcript
+                        model: Ask.transcript.slice(Ask.latestTurnStart).filter(function(e) { return e.kind === "tool" })
                         ToolCallCard {
                             required property var modelData
                             visible: modelData.kind === "tool"
@@ -181,15 +180,30 @@ FloatingWindow {
                         selectByMouse: true
                         selectionColor: Theme.colPurple
                         selectedTextColor: Theme.colFg
-                        text: Ask.errorText !== "" ? Ask.errorText
-                            : (Ask.lastAnswer !== "" ? Ask.lastAnswer
-                            : (Ask.busy ? "…" : ""))
-                        color: Ask.errorText !== "" ? Theme.colRed
-                             : (Ask.lastAnswer !== "" ? Theme.colFg : Theme.colFgDim)
+                        text: Ask.lastAnswer !== "" ? Ask.lastAnswer : (Ask.busy ? "…" : "")
+                        color: Ask.lastAnswer !== "" ? Theme.colFg : Theme.colFgDim
                         font.family: Theme.fontFamily
                         font.pixelSize: 14
                         wrapMode: TextEdit.Wrap
                         textFormat: TextEdit.PlainText
+                    }
+                    TextEdit {
+                        visible: Ask.errorText !== ""
+                        width: parent.width
+                        text: Ask.errorText
+                        textFormat: TextEdit.PlainText
+                        readOnly: true
+                        selectByMouse: true
+                        color: Theme.colRed
+                        wrapMode: TextEdit.Wrap
+                    }
+                    Repeater {
+                        model: Ask.requests
+                        AskRequestCard {
+                            required property var modelData
+                            width: quickBody.width
+                            request: modelData
+                        }
                     }
                 }
             }

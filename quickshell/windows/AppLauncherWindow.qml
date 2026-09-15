@@ -31,7 +31,29 @@ PanelWindow {
         if (visible) {
             appSearch.text = ""
             appSearch.forceActiveFocus()
+        } else {
+            Launchers.cancelIncoming()
         }
+    }
+
+    // ── Drag a result onto the bar to pin it ─────────────────────────
+    // The bar is a separate window, so this can't be a Qt drop. What makes it
+    // work anyway is the pointer grab: once the button is down, motion keeps
+    // arriving here even after the pointer leaves this surface. The pointer is
+    // republished through Launchers in *bar* coordinates and bar/PinStrip.qml
+    // draws the caret and takes the drop.
+    //
+    // This window is anchored to the top of the screen and the bar reserves an
+    // exclusive zone at the bottom, so this window's bottom edge is exactly the
+    // bar's top edge — which is all the conversion needs.
+    property var dragEntry: null
+    property real dragX: 0
+    property real dragY: 0
+
+    function updateEntryDrag(scenePos) {
+        appLauncherWindow.dragX = scenePos.x
+        appLauncherWindow.dragY = scenePos.y
+        Launchers.updateIncoming(scenePos.x, scenePos.y - appLauncherWindow.height)
     }
 
     MouseArea {
@@ -208,6 +230,30 @@ PanelWindow {
                         onEntered: AppLauncher.index = appRow.index
                         onClicked: AppLauncher.run(appRow.modelData)
                     }
+
+                    // Steals the grab from the MouseArea past the drag
+                    // threshold, so a click still launches and a drag pins.
+                    DragHandler {
+                        id: appRowDrag
+                        target: null
+                        cursorShape: Qt.ClosedHandCursor
+                        onActiveChanged: {
+                            if (appRowDrag.active) {
+                                appLauncherWindow.dragEntry = appRow.modelData
+                                appLauncherWindow.updateEntryDrag(appRowDrag.centroid.scenePosition)
+                                Launchers.beginIncoming(appRow.modelData,
+                                                        AppLauncher.screen ? AppLauncher.screen.name : "")
+                            } else {
+                                // The strip under the pointer claims this, if any.
+                                Launchers.dropIncoming()
+                                appLauncherWindow.dragEntry = null
+                            }
+                        }
+                        onCentroidChanged: {
+                            if (appRowDrag.active)
+                                appLauncherWindow.updateEntryDrag(appRowDrag.centroid.scenePosition)
+                        }
+                    }
                 }
             }
 
@@ -225,12 +271,52 @@ PanelWindow {
             Divider { width: parent.width }
             Text {
                 text: AppLauncher.results.length + " app" + (AppLauncher.results.length === 1 ? "" : "s")
-                      + "  ·  ↑↓ navigate  ·  ⏎ launch  ·  esc close"
+                      + "  ·  ↑↓ navigate  ·  ⏎ launch  ·  drag to the bar to pin  ·  esc close"
                 color: Theme.colFgDim
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    // The icon under the pointer while dragging a result out. It stops at this
+    // window's bottom edge, which is where the bar takes over drawing.
+    Item {
+        id: entryGhost
+        visible: appLauncherWindow.dragEntry !== null
+        z: 100
+        width: 34
+        height: 34
+        x: appLauncherWindow.dragX - width / 2
+        y: appLauncherWindow.dragY - height / 2
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.widgetRadius
+            color: Theme.colHover
+            border.color: Theme.colPurpleGlow
+            border.width: Theme.borderWidth
+        }
+        Item {
+            anchors.centerIn: parent
+            width: Theme.iconSize
+            height: Theme.iconSize
+            Text {
+                anchors.centerIn: parent
+                visible: !appLauncherWindow.dragEntry || !appLauncherWindow.dragEntry.icon
+                text: appLauncherWindow.dragEntry
+                      ? (appLauncherWindow.dragEntry.name || "?").charAt(0).toUpperCase() : ""
+                color: Theme.colPurpleGlow
+                font.family: Theme.fontFamily
+                font.pixelSize: 16
+                font.bold: true
+            }
+            IconImage {
+                anchors.fill: parent
+                source: (appLauncherWindow.dragEntry && appLauncherWindow.dragEntry.icon)
+                        ? ("image://icon/" + appLauncherWindow.dragEntry.icon) : ""
             }
         }
     }

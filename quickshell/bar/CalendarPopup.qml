@@ -46,7 +46,7 @@ PopupCard {
                 text: Qt.formatDate(CalendarState.ref, "MMMM yyyy")
                 color: Theme.colPurpleGlow
                 font.family: Theme.fontFamily
-                font.pixelSize: 13
+                font.pixelSize: 24
                 font.bold: true
             }
             MouseArea {
@@ -88,7 +88,7 @@ PopupCard {
             Item {
                 required property var modelData
                 width: root.cellWidth
-                height: 18
+                height: 28
                 Text {
                     anchors.centerIn: parent
                     text: modelData
@@ -121,7 +121,7 @@ PopupCard {
                     text: dayCell.modelData.day
                     color: dayCell.modelData.isToday ? Theme.colFg : Theme.colFgDim
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
+                    font.pixelSize: 21
                     font.bold: dayCell.modelData.isToday
                 }
             }

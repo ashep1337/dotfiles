@@ -4,10 +4,10 @@ import qs
 import qs.components
 import qs.services
 
-// The threaded view: transcript kept, session resumed on every send.
+// Full transcript of the shared Codex conversation.
 FloatingWindow {
     id: chatWindow
-    title: "Claude Chat"
+    title: "Codex Chat"
     visible: Ask.open && Ask.chat
     implicitWidth: 900
     implicitHeight: 650
@@ -24,41 +24,44 @@ FloatingWindow {
             anchors.margins: 14
             spacing: 10
 
-            Row {
+            Item {
                 width: parent.width
-                spacing: 8
+                height: 26
                 Text {
-                    text: "󰭹  Claude"
+                    text: "󰭹  Codex"
                     color: Theme.colPurpleGlow
                     font.family: Theme.fontFamily
                     font.pixelSize: 13
                     font.bold: true
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                Item { width: parent.width - 370; height: 1 }
-                AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
-                AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
-                Rectangle {
-                    width: 56
-                    height: 24
-                    radius: 6
-                    color: newMa.containsMouse ? Theme.colHover : "transparent"
-                    border.color: Theme.colPurpleBorder
-                    border.width: 1
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        anchors.centerIn: parent
-                        text: "New"
-                        color: Theme.colFgDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                    }
-                    MouseArea {
-                        id: newMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Ask.newSession()
+                Row {
+                    anchors.right: parent.right
+                    spacing: 8
+                    AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
+                    AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
+                    Rectangle {
+                        width: 56
+                        height: 24
+                        radius: 6
+                        color: newMa.containsMouse ? Theme.colHover : "transparent"
+                        border.color: Theme.colPurpleBorder
+                        border.width: 1
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            anchors.centerIn: parent
+                            text: "New"
+                            color: Theme.colFgDim
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: newMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Ask.newSession()
+                        }
                     }
                 }
             }
@@ -68,7 +71,7 @@ FloatingWindow {
             ListView {
                 id: chatList
                 width: parent.width
-                height: parent.height - 130
+                height: Math.max(80, parent.height - 97 - (chatStatus.visible ? chatStatus.implicitHeight + 10 : 0))
                 clip: true
                 spacing: 12
                 model: Ask.transcript
@@ -80,6 +83,7 @@ FloatingWindow {
                 Connections {
                     target: Ask
                     function onStreamTextChanged() { chatList.positionViewAtEnd() }
+                    function onRequestsChanged() { Qt.callLater(function() { chatList.positionViewAtEnd() }) }
                 }
 
                 delegate: Column {
@@ -90,7 +94,7 @@ FloatingWindow {
 
                     Text {
                         visible: entry.modelData.kind === "text"
-                        text: entry.modelData.role === "you" ? "you" : "claude"
+                        text: entry.modelData.role === "you" ? "you" : "codex"
                         color: entry.modelData.role === "you" ? Theme.colFgDim : Theme.colPurpleGlow
                         font.family: Theme.fontFamily
                         font.pixelSize: 10
@@ -123,15 +127,17 @@ FloatingWindow {
                     width: chatList.width
                     spacing: 3
                     topPadding: Ask.streamText !== "" ? 12 : 0
-                    visible: Ask.streamText !== ""
+                    visible: Ask.streamText !== "" || Ask.requests.length > 0
                     Text {
-                        text: "claude"
+                        visible: Ask.streamText !== ""
+                        text: "codex"
                         color: Theme.colPurpleGlow
                         font.family: Theme.fontFamily
                         font.pixelSize: 10
                         font.bold: true
                     }
                     TextEdit {
+                        visible: Ask.streamText !== ""
                         text: Ask.streamText
                         color: Theme.colFg
                         font.family: Theme.fontFamily
@@ -144,24 +150,32 @@ FloatingWindow {
                         wrapMode: TextEdit.Wrap
                         textFormat: TextEdit.PlainText
                     }
+                    Repeater {
+                        model: Ask.requests
+                        AskRequestCard {
+                            required property var modelData
+                            width: chatList.width
+                            request: modelData
+                        }
+                    }
                 }
             }
 
             Text {
-                visible: Ask.busy || Ask.errorText !== "" || Ask.lastCostUsd > 0
+                id: chatStatus
+                visible: Ask.busy || Ask.errorText !== "" || Ask.lastDurationMs > 0
                 width: parent.width
                 text: {
                     if (Ask.errorText !== "") return Ask.errorText
-                    if (Ask.thinking) return "Thinking... (esc to cancel)"
-                    if (Ask.activeTool !== "") return "Running " + Ask.activeTool + "... (esc to cancel)"
-                    if (Ask.busy) return "Responding... (esc to cancel)"
-                    return "$" + Ask.lastCostUsd.toFixed(4) + "  ·  "
-                           + (Ask.lastDurationMs / 1000).toFixed(1) + "s"
+                    return Ask.statusText
                 }
+                textFormat: Text.PlainText
                 color: Ask.errorText !== "" ? Theme.colRed : Theme.colFgDim
                 font.family: Theme.fontFamily
                 font.pixelSize: 10
                 wrapMode: Text.Wrap
+                maximumLineCount: 4
+                elide: Text.ElideRight
             }
 
             Rectangle {
@@ -203,12 +217,10 @@ FloatingWindow {
                                 else Ask.close()
                             }
                             Keys.onReturnPressed: {
-                                Ask.send(chatInput.text)
-                                chatInput.text = ""
+                                if (Ask.send(chatInput.text)) chatInput.text = ""
                             }
                             Keys.onEnterPressed: {
-                                Ask.send(chatInput.text)
-                                chatInput.text = ""
+                                if (Ask.send(chatInput.text)) chatInput.text = ""
                             }
                             Keys.onPressed: event => {
                                 if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {

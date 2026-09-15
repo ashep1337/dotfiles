@@ -1,21 +1,8 @@
 [
   {
-    "name": "Sublime Text",
-    "command": "subl",
-    "icon": "sublime-text",
-    "fallback": ""
-  },
-  {
-    "name": "Firefox",
-    "command": "firefox",
-    "icon": "firefox",
-    "fallback": ""
-  },
-  {
     "name": "Dolphin",
     "command": "QT_QPA_PLATFORMTHEME=qt6ct QT_STYLE_OVERRIDE=BreezeDark dolphin",
-    "icon": "org.kde.dolphin",
-    "fallback": ""
+    "icon": "org.kde.dolphin"
   },
   {
     "name": "Bambu Studio",
@@ -24,28 +11,35 @@
     "fallback": "󰮝"
   },
   {
-    "name": "Arduino IDE",
-    "command": "arduino-ide",
-    "icon": "arduino-ide",
-    "fallback": ""
-  },
-  { "name": "Kitty", "command": "kitty", "icon": "kitty", "fallback": "" },
-  {
-    "name": "Qalculate",
-    "command": "qalculate-gtk",
-    "icon": "qalculate",
-    "fallback": ""
+    "name": "Qalculate!",
+    "entry": "qalculate-gtk",
+    "icon": "qalculate"
   },
   {
+    "name": "Sublime Text",
+    "command": "subl",
+    "icon": "sublime-text"
+  },
+  {
+    "name": "Kitty",
+    "command": "kitty",
+    "icon": "kitty"
+  },
+  {
+    "command": "signal-desktop",
     "icon": "signal-desktop",
     "fallback": "󰭹",
-    "command": "signal-desktop",
     "notify": "Signal",
     "class": "signal"
   },
   {
+    "command": "thunderbird",
     "icon": "org.mozilla.Thunderbird",
-    "fallback": "󰇮",
-    "command": "thunderbird"
+    "fallback": "󰇮"
+  },
+  {
+    "name": "Firefox",
+    "command": "firefox",
+    "icon": "firefox"
   }
 ]

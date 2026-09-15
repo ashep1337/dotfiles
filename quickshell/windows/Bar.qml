@@ -116,40 +116,11 @@ PanelWindow {
 
         BarSeparator {}
 
-        // ── Dynamic launcher buttons from launchers.json ─────────────
-        Repeater {
-            model: Launchers.items
-            BarButton {
-                id: launcherBtn
-                required property var modelData
-                required property int index
-                Layout.preferredWidth: 34
-                bordered: false
-                onClicked: {
-                    launcherProcess.command = ["sh", "-c", launcherBtn.modelData.command]
-                    launcherProcess.running = true
-                }
-                Item {
-                    anchors.centerIn: parent
-                    width: Theme.iconSize
-                    height: Theme.iconSize
-                    Text {
-                        anchors.centerIn: parent
-                        text: launcherBtn.modelData.fallback
-                        color: Theme.colFg
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 16
-                    }
-                    IconImage {
-                        anchors.fill: parent
-                        source: launcherBtn.modelData.icon
-                                ? ("image://icon/" + launcherBtn.modelData.icon) : ""
-                    }
-                }
-                Process {
-                    id: launcherProcess
-                }
-            }
+        // ── Pinned launchers from launchers.json ─────────────────────
+        // Drag to reorder, drag off the bar to unpin, drop an app from the
+        // launcher to pin it.
+        PinStrip {
+            screenName: barWindow.screenName
         }
 
         Item { Layout.fillWidth: true }

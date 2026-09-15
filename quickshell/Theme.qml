@@ -39,7 +39,7 @@ Singleton {
     property int netPopupWidth: 320
     property int volPopupWidth: 250
     property int powerPopupWidth: 170
-    property int calPopupWidth: 268
+    property int calPopupWidth: 750
     property int mailPopupWidth: 460
 
     // How long after locking before the displays blank

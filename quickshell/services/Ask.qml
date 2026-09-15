@@ -4,349 +4,301 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 import qs.services
+import "CodexClient.js" as Codex
 
-// Ask Claude, over the `claude` CLI's streaming JSON protocol.
-//
-// One process serves a whole conversation: turns are written to its stdin as
-// JSON lines and it stays alive between them, so context, the prompt cache and
-// the ~3s of startup are all paid once per session rather than per message.
-// Killing it (cancel, crash) is recoverable — the next send resumes the same
-// session id.
-//
-//   stdin   {"type":"user","message":{"role":"user","content":[...]}}
-//   stdout  system/init | stream_event | assistant | user | result | ...
-//
-// Quick mode shows just the latest exchange; chat mode keeps the transcript.
-// Both read the same stream.
+// Quick shows the latest exchange; Chat shows the same conversation in full.
 Singleton {
     id: ask
 
     property bool open: false
-    property bool chat: false          // false = quick, true = chat
+    property bool chat: false
+    property bool busy: false
+    property bool thinking: false
+    property bool cancelling: false
+    property bool ready: false
+    property bool procStarted: false
+    property bool stopping: false
     property string session: ""
     property string errorText: ""
-    property bool busy: false
-
-    // Finalized entries. Each is one of:
-    //   { role: "you",    kind: "text", text }
-    //   { role: "claude", kind: "text", text }
-    //   { role: "claude", kind: "tool", tool, input, id, result, isError, done }
+    property string configError: ""
+    property string stderrTail: ""
+    property string workingDirectory: Quickshell.env("HOME") + "/dev/ai"
+    property var client: null
     property var transcript: []
-
-    // The assistant text block currently arriving, rendered as a trailing
-    // bubble so streaming never rewrites the transcript array.
+    property int latestTurnStart: 0
+    property var requests: []
+    property var requestDrafts: ({})
     property string streamText: ""
-    // True between a thinking block starting and the first visible output.
-    property bool thinking: false
-
-    // Quick mode's single exchange
+    property string streamId: ""
     property string lastQuestion: ""
-    readonly property string lastAnswer: ask.quickAnswer + ask.streamText
     property string quickAnswer: ""
-
-    // The tool currently running, for the one-line activity hint in quick
-    // mode. Empty when nothing is in flight.
+    readonly property string lastAnswer: ask.quickAnswer + ask.streamText
+    property int lastDurationMs: 0
+    property real lastTokens: 0
+    property var models: [{ id: "", label: "default" }]
+    property int modelIndex: 0
+    readonly property string modelLabel: (ask.models[ask.modelIndex] || ask.models[0]).label
     readonly property string activeTool: {
+        if (!ask.busy) return ""
         for (var i = ask.transcript.length - 1; i >= 0; i--) {
             var e = ask.transcript[i]
-            if (e.kind === "tool") return e.done ? "" : e.tool
+            if (e.kind === "tool" && !e.done) return e.tool
         }
         return ""
     }
+    readonly property string statusText: {
+        if (ask.cancelling) return "Cancelling…"
+        if (ask.requests.length) return "Waiting for your response"
+        if (ask.busy && !ask.ready) return "Connecting to Codex…"
+        if (ask.thinking) return "Thinking… (esc to cancel)"
+        if (ask.activeTool) return "Running " + ask.activeTool + "… (esc to cancel)"
+        if (ask.busy) return "Responding… (esc to cancel)"
+        if (ask.lastDurationMs) return ask.lastTokens + " tokens · " + (ask.lastDurationMs / 1000).toFixed(1) + "s"
+        return ""
+    }
 
-    // Last turn's cost/duration, shown in the chat footer
-    property real lastCostUsd: 0
-    property int lastDurationMs: 0
+    function getClient() {
+        if (!ask.client) ask.client = new Codex.Client(
+            function(message) { askProc.write(JSON.stringify(message) + "\n") },
+            function(event) { ask.handleEvent(event) }, ask.workingDirectory)
+        return ask.client
+    }
 
-    readonly property var models: [
-        { "id": "",       "label": "default" },
-        { "id": "haiku",  "label": "Haiku" },
-        { "id": "sonnet", "label": "Sonnet" },
-        { "id": "opus",   "label": "Opus" },
-        { "id": "fable",  "label": "Fable" },
-        { "id": "best",   "label": "Best" }
-    ]
-    property int modelIndex: 0
-    readonly property string modelLabel: ask.models[ask.modelIndex].label
+    function ensureStarted() {
+        if (ask.stopping) return false
+        if (ask.configError) { ask.errorText = ask.configError; return false }
+        if (!askProc.running) {
+            ask.stderrTail = ""
+            ask.ready = false
+            startupTimer.restart()
+            askProc.running = true
+        }
+        return true
+    }
 
     function cycleModel(delta) {
-        var n = ask.models.length
-        ask.modelIndex = (ask.modelIndex + delta + n) % n
+        if (ask.busy) return
+        ask.modelIndex = (ask.modelIndex + delta + ask.models.length) % ask.models.length
     }
 
-    function append(entry) {
-        var t = ask.transcript.slice()
-        t.push(entry)
-        ask.transcript = t
-    }
+    function append(entry) { ask.transcript = ask.transcript.concat([entry]) }
 
-    // Tool results arrive in a later message than the call, so the entry is
-    // found again by its tool_use id.
-    function attachToolResult(id, text, isError) {
+    function updateEntry(entry) {
         var t = ask.transcript.slice()
         for (var i = t.length - 1; i >= 0; i--) {
-            if (t[i].kind === "tool" && t[i].id === id) {
-                var e = {}
-                for (var k in t[i]) e[k] = t[i][k]
-                e.result = text
-                e.isError = isError
-                e.done = true
-                t[i] = e
+            if (t[i].id === entry.id && t[i].kind === entry.kind) {
+                t[i] = entry
                 ask.transcript = t
                 return
             }
         }
+        ask.append(entry)
     }
 
-    function newSession() {
-        ask.stop()
+    function finishText(text, id) {
+        if (text) {
+            ask.updateEntry({ role: "codex", kind: "text", text: text, id: id })
+            ask.quickAnswer = ask.transcript.slice(ask.latestTurnStart).filter(function(e) {
+                return e.role === "codex" && e.kind === "text"
+            }).map(function(e) { return e.text }).join("\n\n") + "\n\n"
+        }
+        if (ask.streamId === id) {
+            ask.streamText = ""
+            ask.streamId = ""
+        }
+    }
+
+    function clearConversation() {
         ask.session = ""
         ask.transcript = []
+        ask.latestTurnStart = 0
+        ask.requests = []
         ask.streamText = ""
+        ask.streamId = ""
         ask.quickAnswer = ""
         ask.lastQuestion = ""
         ask.errorText = ""
-        ask.thinking = false
-        ask.lastCostUsd = 0
+        ask.lastTokens = 0
         ask.lastDurationMs = 0
     }
 
-    function setMode(isChat) {
-        if (ask.chat === isChat) return
-        ask.chat = isChat
-        ask.newSession()
-    }
-
-    // ── Transport ─────────────────────────────────────────────────────
-    function buildCommand() {
-        // --print has no way to show a permission prompt, so anything that
-        // would ask is denied outright. This settings file pre-approves the
-        // file tools under ~/dev/claude, the agent working tree.
-        var args = ["claude", "--print",
-                    "--input-format", "stream-json",
-                    "--output-format", "stream-json",
-                    "--verbose",
-                    "--include-partial-messages",
-                    "--settings",
-                    Quickshell.env("HOME") + "/dev/claude/quickshell/ask-settings.json"]
-        var model = ask.models[ask.modelIndex].id
-        if (model !== "") args.push("--model", model)
-        // Set only when a previous process for this conversation went away;
-        // a live process already holds the session.
-        if (ask.session !== "") args.push("--resume", ask.session)
-        return args
-    }
+    function newSession() { ask.getClient().reset() }
+    function setMode(isChat) { ask.chat = isChat }
 
     function send(q) {
         var text = (q || "").trim()
-        if (text === "" || ask.busy) return
-
-        if (!ask.chat) {
-            // Quick mode keeps one exchange on screen at a time. Tool calls
-            // still land in the transcript, so it is cleared per question
-            // rather than accumulating across them.
-            ask.lastQuestion = text
-            ask.quickAnswer = ""
-            ask.transcript = []
-        } else {
-            ask.append({ "role": "you", "kind": "text", "text": text })
+        if (!text || ask.busy || ask.stopping || Session.locked || ask.configError) {
+            if (ask.configError) ask.errorText = ask.configError
+            return false
         }
-        ask.streamText = ""
         ask.errorText = ""
-        ask.busy = true
-        ask.thinking = false
-
-        ask.writeLine(JSON.stringify({
-            "type": "user",
-            "message": { "role": "user", "content": [{ "type": "text", "text": text }] }
-        }))
+        ask.lastQuestion = text
+        ask.quickAnswer = ""
+        ask.lastTokens = 0
+        ask.lastDurationMs = 0
+        ask.latestTurnStart = ask.transcript.length
+        ask.append({ role: "you", kind: "text", text: text })
+        ask.getClient().send(text, ask.models[ask.modelIndex].id)
+        ask.ensureStarted()
+        return true
     }
 
-    // Starting a Process is asynchronous, so anything written in the same tick
-    // as `running = true` lands before there is a pipe and is lost. Queue until
-    // onStarted says the pipe exists.
-    property var pendingWrites: []
-    property bool procStarted: false
-
-    function writeLine(json) {
-        if (!askProc.running) {
-            ask.procStarted = false
-            ask.pendingWrites = [json]
-            askProc.command = ask.buildCommand()
-            askProc.running = true
-            return
-        }
-        if (!ask.procStarted) {
-            var q = ask.pendingWrites.slice()
-            q.push(json)
-            ask.pendingWrites = q
-            return
-        }
-        askProc.write(json + "\n")
+    function respond(id, result) {
+        if (!Session.locked) ask.getClient().respond(id, result)
     }
-
-    function flushPending() {
-        var q = ask.pendingWrites
-        ask.pendingWrites = []
-        for (var i = 0; i < q.length; i++) askProc.write(q[i] + "\n")
+    function saveRequestDraft(id, key, value) {
+        var drafts = Object.assign({}, ask.requestDrafts)
+        var answers = Object.assign({}, drafts[String(id)] || {})
+        answers[key] = value
+        drafts[String(id)] = answers
+        ask.requestDrafts = drafts
     }
-
-    function stop() {
-        ask.procStarted = false
-        ask.pendingWrites = []
-        if (askProc.running) askProc.running = false
-    }
-
-    function cancel() {
-        if (!ask.busy) return
-        // No mid-turn interrupt on this transport, so the turn is ended by
-        // dropping the process. The session id survives, and the next send
-        // resumes it.
-        ask.stop()
-        ask.busy = false
-        ask.thinking = false
-        if (ask.streamText !== "") {
-            if (ask.chat) ask.append({ "role": "claude", "kind": "text", "text": ask.streamText })
-            else ask.quickAnswer = ask.streamText
-            ask.streamText = ""
-        }
-    }
-
+    function cancel() { if (ask.client) ask.client.cancel() }
     function show() {
-        ask.setMode(false)   // always come back in Quick
+        if (Session.locked) return
         ask.open = true
+        ask.getClient()
+        ask.ensureStarted()
     }
-    function close() {
-        ask.open = false
-        ask.cancel()
-    }
+    function close() { ask.open = false; ask.cancel() }
     function toggle() {
         if (Session.locked) return
         if (ask.open) ask.close()
         else ask.show()
     }
 
-    // ── Stream handling ───────────────────────────────────────────────
-    function handleLine(line) {
-        var d
-        try {
-            d = JSON.parse(line)
-        } catch (e) {
-            return   // partial or non-JSON noise
-        }
-        var t = d.type
-
-        if (t === "system") {
-            if (d.subtype === "init" && d.session_id) ask.session = d.session_id
-            else if (d.subtype === "permission_denied") ask.thinking = false
-            return
-        }
-
-        if (t === "stream_event") {
-            var ev = d.event || {}
-            if (ev.type === "content_block_start") {
-                var cb = ev.content_block || {}
-                if (cb.type === "thinking") ask.thinking = true
-                else if (cb.type === "text") { ask.thinking = false; ask.streamText = "" }
-            } else if (ev.type === "content_block_delta") {
-                var dl = ev.delta || {}
-                if (dl.type === "text_delta" && dl.text) {
-                    ask.thinking = false
-                    ask.streamText = ask.streamText + dl.text
-                }
-            } else if (ev.type === "content_block_stop") {
-                // A finished text block joins the transcript so the streaming
-                // bubble is free for whatever comes next in the same turn.
-                if (ask.streamText !== "") {
-                    if (ask.chat) ask.append({ "role": "claude", "kind": "text", "text": ask.streamText })
-                    else ask.quickAnswer = ask.quickAnswer + ask.streamText
-                    ask.streamText = ""
-                }
+    function handleEvent(e) {
+        if (e.type === "ready") {
+            ask.ready = true
+        } else if (e.type === "models") {
+            var selected = (ask.models[ask.modelIndex] || {}).id || ""
+            var m = [{ id: "", label: "default" }]
+            for (var i = 0; i < e.models.length; i++) {
+                var model = e.models[i]
+                if (!model.hidden) m.push({ id: model.model, label: model.displayName || model.model })
             }
-            return
-        }
-
-        if (t === "assistant") {
-            // Tool calls are taken from the complete message rather than
-            // reassembled from input_json_delta fragments.
-            var content = (d.message || {}).content || []
-            for (var i = 0; i < content.length; i++) {
-                var b = content[i]
-                if (b.type === "tool_use") {
-                    ask.thinking = false
-                    ask.append({
-                        "role": "claude", "kind": "tool",
-                        "tool": b.name || "tool",
-                        "input": JSON.stringify(b.input || {}),
-                        "id": b.id || "",
-                        "result": "", "isError": false, "done": false
-                    })
-                }
+            ask.models = m
+            ask.modelIndex = 0
+            for (var j = 0; j < m.length; j++) if (m[j].id === selected) ask.modelIndex = j
+        } else if (e.type === "session") {
+            ask.session = e.id
+        } else if (e.type === "busy") {
+            ask.busy = true
+            ask.thinking = false
+            ask.cancelling = false
+        } else if (e.type === "cancelling") {
+            ask.cancelling = true
+        } else if (e.type === "reset") {
+            ask.clearConversation()
+        } else if (e.type === "delta") {
+            ask.thinking = false
+            if (ask.streamId && ask.streamId !== e.id) ask.finishText(ask.streamText, ask.streamId)
+            ask.streamId = e.id
+            ask.streamText += e.text
+        } else if (e.type === "message") {
+            ask.thinking = false
+            ask.finishText(e.text, e.id)
+        } else if (e.type === "tool") {
+            ask.thinking = false
+            ask.updateEntry(e.entry)
+        } else if (e.type === "toolDelta") {
+            for (var k = ask.transcript.length - 1; k >= 0; k--) {
+                var old = ask.transcript[k]
+                if (old.kind !== "tool" || old.id !== e.id) continue
+                var updated = Object.assign({}, old)
+                updated.result = (old.result + e.text).slice(-65536)
+                ask.updateEntry(updated)
+                break
             }
-            return
-        }
-
-        if (t === "user") {
-            var uc = (d.message || {}).content || []
-            for (var j = 0; j < uc.length; j++) {
-                var r = uc[j]
-                if (r.type === "tool_result") {
-                    var body = r.content
-                    if (typeof body !== "string") body = JSON.stringify(body)
-                    ask.attachToolResult(r.tool_use_id || "", body || "", r.is_error === true)
-                }
+        } else if (e.type === "thinking") {
+            ask.thinking = e.value
+        } else if (e.type === "requests") {
+            ask.requests = e.requests
+            var drafts = {}
+            for (var r = 0; r < e.requests.length; r++) {
+                var requestId = String(e.requests[r].id)
+                if (ask.requestDrafts[requestId]) drafts[requestId] = ask.requestDrafts[requestId]
             }
-            return
-        }
-
-        if (t === "result") {
+            ask.requestDrafts = drafts
+        } else if (e.type === "usage") {
+            ask.lastTokens = e.usage.totalTokens || 0
+        } else if (e.type === "done") {
+            if (ask.streamText) ask.finishText(ask.streamText, ask.streamId)
+            var t = ask.transcript.slice()
+            for (var n = 0; n < t.length; n++) {
+                if (t[n].kind !== "tool" || t[n].done) continue
+                t[n] = Object.assign({}, t[n], { done: true, isError: true,
+                    result: t[n].result + "\nTurn ended before this tool completed (" + e.status + ")." })
+            }
+            ask.transcript = t
             ask.busy = false
             ask.thinking = false
-            if (d.session_id) ask.session = d.session_id
-            ask.lastCostUsd = d.total_cost_usd || 0
-            ask.lastDurationMs = d.duration_ms || 0
-            if (ask.streamText !== "") {
-                if (ask.chat) ask.append({ "role": "claude", "kind": "text", "text": ask.streamText })
-                else ask.quickAnswer = ask.quickAnswer + ask.streamText
-                ask.streamText = ""
-            }
-            if (d.is_error) {
-                ask.errorText = (typeof d.result === "string" && d.result !== "")
-                    ? d.result : ("turn failed: " + (d.subtype || "unknown"))
-            }
-            return
+            ask.cancelling = false
+            ask.lastDurationMs = e.durationMs
+            if (e.error) ask.errorText = e.error
+        } else if (e.type === "fatal") {
+            ask.ready = false
+            ask.errorText = e.message
+            ask.stopping = ask.procStarted
+            askProc.running = false
         }
     }
 
+    FileView {
+        id: settings
+        path: Qt.resolvedUrl("../ask-settings.json")
+        blockLoading: true
+        onLoaded: {
+            try {
+                var config = JSON.parse(settings.text())
+                var cwd = config.workingDirectory || (Quickshell.env("HOME") + "/dev/ai")
+                if (cwd.indexOf("~/") === 0) cwd = Quickshell.env("HOME") + cwd.substring(1)
+                if (cwd.charAt(0) !== "/") throw new Error("workingDirectory must be absolute or start with ~/")
+                ask.workingDirectory = cwd
+            } catch (e) { ask.configError = "ask-settings.json: " + e.message }
+        }
+        onLoadFailed: ask.configError = "Could not read ask-settings.json"
+    }
+
+    Timer {
+        id: startupTimer
+        interval: 5000
+        onTriggered: ask.getClient().fatal("Could not start Codex. Check that codex is on PATH and the working directory exists.")
+    }
+    Timer {
+        interval: 1000
+        repeat: true
+        running: askProc.running
+        onTriggered: if (ask.client) ask.client.tick()
+    }
     Process {
         id: askProc
-        workingDirectory: Quickshell.env("HOME")
-        stdinEnabled: true      // must be set before running for write() to work
-        stdout: SplitParser {
-            onRead: data => ask.handleLine(data)
-        }
+        command: ["codex", "app-server"]
+        workingDirectory: ask.workingDirectory
+        stdinEnabled: true
         onStarted: {
             ask.procStarted = true
-            ask.flushPending()
+            startupTimer.stop()
+            ask.getClient().connected()
+        }
+        stdout: SplitParser {
+            onRead: data => {
+                try { ask.getClient().receive(JSON.parse(data)) }
+                catch (e) { ask.getClient().fatal("Invalid Codex response: " + e.message) }
+            }
         }
         stderr: SplitParser {
-            onRead: data => {
-                // Drop Claude Code's own warnings; only show real errors
-                var s = (data || "").trim()
-                if (s === "" || s.indexOf("Warning:") === 0) return
-                ask.errorText = s
-            }
+            onRead: data => ask.stderrTail = (ask.stderrTail + data + "\n").slice(-4000)
         }
-        onExited: {
+        onExited: exitCode => {
+            startupTimer.stop()
             ask.procStarted = false
-            ask.pendingWrites = []
-            ask.busy = false
-            ask.thinking = false
-            if (ask.streamText !== "") {
-                if (ask.chat) ask.append({ "role": "claude", "kind": "text", "text": ask.streamText })
-                else ask.quickAnswer = ask.quickAnswer + ask.streamText
-                ask.streamText = ""
-            }
+            ask.stopping = false
+            ask.ready = false
+            var message = "Codex exited (" + exitCode + "). Send again to resume."
+            if (exitCode !== 0 && ask.stderrTail.trim()) message += "\n" + ask.stderrTail.trim()
+            ask.getClient().disconnected(message)
+            if (!ask.errorText) ask.errorText = message
         }
     }
 }

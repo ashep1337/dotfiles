@@ -113,7 +113,7 @@ ShellRoot {
     GlobalShortcut {
         appid: "quickshell"
         name: "ask"
-        description: "Ask Claude"
+        description: "Ask Codex"
         onPressed: Ask.toggle()
     }
     GlobalShortcut {
@@ -146,10 +146,11 @@ ShellRoot {
         // Driving the popup from a terminal, for testing:
         //   qs ipc call ask chat
         //   qs ipc call ask send "explain wayland in 100 words"
-        function chat(): void { Ask.setMode(true); Ask.open = true }
-        function quick(): void { Ask.setMode(false); Ask.open = true }
-        function send(text: string): void { Ask.open = true; Ask.send(text) }
+        function chat(): void { Ask.setMode(true); Ask.show() }
+        function quick(): void { Ask.setMode(false); Ask.show() }
+        function send(text: string): void { Ask.show(); Ask.send(text) }
         function model(name: string): void {
+            if (Ask.busy) return
             for (var i = 0; i < Ask.models.length; i++) {
                 if (Ask.models[i].id === name || Ask.models[i].label.toLowerCase() === name.toLowerCase()) {
                     Ask.modelIndex = i
