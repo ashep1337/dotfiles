@@ -20,6 +20,7 @@ function fixture() {
     function connect() {
         c.connected(); reply(take('initialize'), {}); take('initialized');
         reply(take('model/list'), {data:[]});
+        reply(take('thread/list'), {data:[]});
     }
     function start(model='', turn='turn-1') {
         c.send('Hello', model);
@@ -180,6 +181,32 @@ test('model pagination and late token usage are handled', () => {
     f.start(); f.notify('turn/completed',{turn:{id:'turn-1',status:'completed'}});
     f.notify('thread/tokenUsage/updated',{turnId:'turn-1',tokenUsage:{last:{totalTokens:23}}});
     assert.equal(f.events.at(-1).usage.totalTokens,23);
+});
+
+test('lists workspace history and opens a persisted transcript', () => {
+    const f=fixture(); f.connect();
+    f.c.listThreads();
+    const list=f.take('thread/list');
+    assert.equal(list.params.cwd,'/workspace');
+    assert.equal(list.params.sortKey,'updated_at');
+    f.reply(list,{data:[{id:'old',preview:'Earlier task',updatedAt:12}]});
+    assert.equal(f.events.at(-1).threads[0].id,'old');
+
+    assert.equal(f.c.openThread('old'),true);
+    const read=f.take('thread/read');
+    assert.deepEqual(read.params,{threadId:'old',includeTurns:true});
+    f.reply(read,{thread:{id:'old',model:'saved-model',turns:[{items:[
+        {type:'userMessage',id:'u',content:[{type:'text',text:'Question'}]},
+        {type:'agentMessage',id:'a',text:'Answer'},
+        {type:'commandExecution',id:'cmd',command:'pwd',cwd:'/workspace',
+         commandActions:[],status:'completed',aggregatedOutput:'/workspace',exitCode:0}
+    ]}]}});
+    const opened=f.events.at(-1);
+    assert.equal(opened.type,'historyOpened');
+    assert.deepEqual(opened.entries.map(e=>e.kind),['text','text','tool']);
+    assert.deepEqual(opened.entries.slice(0,2).map(e=>e.role),['you','codex']);
+    assert.equal(f.c.thread,'old');
+    assert.equal(f.c.loaded,false);
 });
 
 // Exercise actual QML presentation functions without a compositor.

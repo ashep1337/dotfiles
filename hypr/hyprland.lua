@@ -10,15 +10,15 @@
 ---- MONITORS ----
 ------------------
 
-hl.monitor({ output = "DP-3", mode = "1920x1080@300.0", position = "4480x360", scale = 1.0 })
-hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60.0", position = "0x360", scale = 1.0 })
-hl.monitor({ output = "DP-1", mode = "2560x1440@164.83", position = "1920x0", scale = 1.0 })
-
+hl.monitor({ output = "DP-3", mode = "1920x1080@300.0", position = "4480x720", scale = 1.0 })
+hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60.0", position = "0x720", scale = 1.0 })
+hl.monitor({ output = "DP-1", mode = "2560x1440@164.83", position = "1920x360", scale = 1.0 })
+hl.monitor({ output = "DP-2", mode = "2560x1440@164.83", position = "4480x0", scale = 1.5, transform = 2 })
 -- Workspace -> monitor pinning (was: workspace = N, monitor:X)
 local workspaceMonitors = {
-	{ monitor = "DP-1", workspaces = { 1, 2, 3, 4 } },
+	{ monitor = "DP-1",     workspaces = { 1, 2, 3, 4 } },
 	{ monitor = "HDMI-A-1", workspaces = { 5, 6, 7, 8 } },
-	{ monitor = "DP-3", workspaces = { 9, 10, 11, 12 } },
+	{ monitor = "DP-3",     workspaces = { 9, 10, 11, 12 } },
 }
 
 for _, entry in ipairs(workspaceMonitors) do
@@ -49,7 +49,7 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("ddcutil setvcp 10 100")
 	hl.exec_cmd("wl-paste --type text --watch cliphist store")
 	hl.exec_cmd("wl-paste --type image --watch cliphist store")
-
+	hl.exec_cmd("signal-desktop --start-in-tray --use-tray-icon")
 	-- was: exec-once = sleep 4 && cycle_wallpaper.sh
 	hl.timer(function()
 		hl.exec_cmd("/home/ashep/Extras/cycle_wallpaper.sh")
@@ -207,21 +207,31 @@ hl.bind(mainMod .. " + M", hl.dsp.exit()) -- see notes: consider hyprshutdown
 hl.bind(mainMod .. " + F", hl.dsp.exec_cmd("GTK_THEME=Adwaita:dark " .. fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
-hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
+hl.bind(mainMod .. " + P", hl.dsp.exec_cmd("~/bin/open-frigate-firefox.sh"))
 -- hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
 
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock && ~/Extras/cycle_wallpaper.sh"))
+-- hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock && ~/Extras/cycle_wallpaper.sh"))
+hl.bind(mainMod .. " + L", function()
+	hl.dispatch(hl.dsp.global("quickshell:lock"))
+	hl.dispatch(hl.dsp.exec_cmd("~/Extras/cycle_wallpaper.sh"))
+	hl.dispatch(hl.dsp.exec_cmd("~/bin/close-frigate-firefox.sh"))
+end)
+
 hl.bind("CTRL + SHIFT + L", hl.dsp.exec_cmd("~/Extras/cycle_wallpaper.sh"))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("firefox"))
-hl.bind(mainMod .. " + A", hl.dsp.exec_cmd(terminal .. " -e nvim"))
+hl.bind(mainMod .. " + Z", hl.dsp.exec_cmd(terminal .. " -e nvim"))
+hl.bind(mainMod .. " + A", hl.dsp.global("quickshell:ask"))
 hl.bind(mainMod .. " + G", hl.dsp.exec_cmd("qalculate-gtk"))
 hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("signal-desktop"))
-hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("~/.config/rofi/launchers/misc/launcher.sh"))
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("thunderbird"))
 
+hl.bind(mainMod .. " + Space", hl.dsp.global("quickshell:launcher"))
+-- hl.bind(mainMod .. " + space", hl.dsp.exec_cmd("~/.config/rofi/launchers/misc/launcher.sh"))
+hl.bind(mainMod .. " + Menu", hl.dsp.exec_cmd("/home/ashep/bin/cursor_twitch"))
 -- Screenshots
 hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("hyprshot -m region -o /home/ashep/Downloads/"))
 hl.bind(mainMod .. " + CTRL + S", hl.dsp.exec_cmd("hyprshot -m output -m HDMI-A-1 -o /home/ashep/Downloads/"))
-
+hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("/home/ashep/bin/winserv"))
 -- Move focus
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "l" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "r" }))
@@ -362,10 +372,21 @@ hl.window_rule({
 	name = "signal-popup",
 	match = { class = "^(signal)$" },
 	float = true,
-	size = "575 235",
-	move = "1340 800",
+	size = "775 335",
+	move = { "monitor_w * 0.57", "monitor_h * 0.86 - window_h" },
+
+	-- move = "1340 800",
 })
 
+hl.window_rule({
+	name = "signal-cli",
+	match = { class = "^(org\\.quickshell)$", title = "^(Signal)$" },
+	float = true,
+	size = "775 335",
+	move = { "monitor_w * 0.57", "monitor_h * 0.95 - window_h" },
+
+	-- move = "1340 800",
+})
 -- Fix some dragging issues with XWayland
 hl.window_rule({
 	name = "fix-xwayland-drags",
@@ -378,4 +399,32 @@ hl.window_rule({
 		pin = false,
 	},
 	no_focus = true,
+})
+
+hl.window_rule({
+	name = "ask-codex-quick",
+	match = { title = "^Ask Codex$" },
+	float = true,
+	move = { "monitor_w * 0.65", "monitor_h * 0.95 - window_h" },
+})
+
+hl.window_rule({
+	name = "codex-chat",
+	match = { title = "^Codex Chat$" },
+	float = true,
+	size = "900 650",
+})
+
+hl.window_rule({
+	name = "mail-reader",
+	match = { title = "^Mail$" },
+	float = true,
+	size = "900 700",
+})
+
+hl.window_rule({
+	name = "Thunderbird",
+	match = { class = "org.mozilla.Thunderbird" },
+	float = true,
+	size = "1400 900",
 })

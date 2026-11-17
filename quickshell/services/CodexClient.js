@@ -41,8 +41,36 @@ Client.prototype.connected = function() {
         self.ready = true;
         self.emit({ type: "ready" });
         self.listModels(null, []);
+        self.listThreads();
         self.pump();
     });
+};
+
+Client.prototype.listThreads = function() {
+    var self = this;
+    this.rpc("thread/list", {
+        limit: 50, cwd: this.cwd, sortKey: "updated_at", sortDirection: "desc"
+    }, function(result) {
+        self.emit({ type: "history", threads: result.data || [] });
+    }, true);
+};
+
+Client.prototype.openThread = function(id) {
+    if (!id || this.busy || this.starting || !this.ready) return false;
+    var self = this;
+    this.rpc("thread/read", { threadId: id, includeTurns: true }, function(result) {
+        var thread = result.thread || {};
+        if (self.loaded && self.thread && self.thread !== id)
+            self.rpc("thread/unsubscribe", { threadId: self.thread }, function() {}, true);
+        self.thread = id;
+        self.loaded = false;
+        self.defaultModel = thread.model || "";
+        self.previousTurn = "";
+        self.items = {};
+        self.emit({ type: "session", id: id });
+        self.emit({ type: "historyOpened", entries: transcriptEntries(thread) });
+    });
+    return true;
 };
 
 Client.prototype.listModels = function(cursor, collected) {
@@ -305,4 +333,29 @@ function toolEntry(item, done) {
              result: output, done: done, isError: item.status === "failed" ||
              item.status === "declined" || item.success === false ||
              (item.exitCode !== undefined && item.exitCode !== null && item.exitCode !== 0) };
+}
+
+function transcriptEntries(thread) {
+    var entries = [];
+    var turns = thread.turns || [];
+    for (var i = 0; i < turns.length; i++) {
+        var items = turns[i].items || [];
+        for (var j = 0; j < items.length; j++) {
+            var item = items[j];
+            if (item.type === "userMessage") {
+                var parts = (item.content || []).filter(function(part) {
+                    return part.type === "text";
+                }).map(function(part) { return part.text || ""; });
+                if (parts.length) entries.push({ role: "you", kind: "text",
+                                                  text: parts.join("\n"), id: item.id });
+            } else if (item.type === "agentMessage") {
+                if (item.text) entries.push({ role: "codex", kind: "text",
+                                              text: item.text, id: item.id });
+            } else if (item.type !== "reasoning" && item.type !== "plan" &&
+                       item.type !== "hookPrompt" && item.type !== "functionCallOutput") {
+                entries.push(toolEntry(item, true));
+            }
+        }
+    }
+    return entries;
 }

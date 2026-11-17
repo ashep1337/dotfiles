@@ -1,0 +1,2829 @@
+import Quickshell
+import Quickshell.Wayland
+import Quickshell.Io
+import Quickshell.Hyprland
+import Quickshell.Networking
+import Quickshell.Services.Pipewire
+import Quickshell.Services.SystemTray
+import Quickshell.Services.Pam
+import Quickshell.Widgets
+import QtQuick
+import QtQuick.Layouts
+ShellRoot {
+    id: root
+    // ── Theme ─────────────────────────────────────────────────────────
+    property color colPurple: "#37006c"
+    property color colPurpleBorder: "#37006c"
+    property color colPurpleGlow: "#5a1a9a"
+    property color colFg: "#e0def4"
+    property color colFgDim: "#908caa"
+    property color colBarBg: "#000000"
+    property color colWidgetBg: "#1a1a2e80"
+    property color colHover: "#2a0050"
+    property color colRed: "#f7768e"
+    property color colGreen: "#a6e3a1"
+    // Opaque popup surfaces (no alpha channel — menus are solid black)
+    property color colPopupBg: "#000000"
+    property color colPopupInset: "#141422"
+    property color colPopupHover: "#1c0035"
+    property string fontFamily: "JetBrainsMono Nerd Font"
+    property int fontSize: 14
+    property int barHeight: 42
+    property int widgetRadius: 8
+    property int borderWidth: 2
+    property int iconSize: 22
+    // Popup geometry — right edges stay pinned relative to the bar's right side
+    property int netPopupWidth: 320
+    property int volPopupWidth: 250
+    property int powerPopupWidth: 170
+    property int calPopupWidth: 268
+    property int mailPopupWidth: 460
+    // How long after locking before the displays blank
+    property int lockBlankDelayMs: 60000
+    // ── Clock ─────────────────────────────────────────────────────────
+    // One internal timer, ticking on the minute — no `date` subprocesses.
+    SystemClock {
+        id: clock
+        precision: SystemClock.Minutes
+    }
+    readonly property string currentTime: Qt.formatDateTime(clock.date, "hh:mm AP")
+    readonly property string currentDate: Qt.formatDateTime(clock.date, "ddd, MMM dd yyyy")
+    // ── Shared state ──────────────────────────────────────────────────
+    property string activePopup: ""
+    property var launcherItems: []
+    function togglePopup(name) {
+        if (root.activePopup === name) {
+            root.activePopup = ""
+        } else {
+            root.activePopup = name
+        }
+    }
+    // ── Launchers config (live-reloaded) ──────────────────────────────
+    // FileView replaces `cat` + SplitParser. watchChanges means edits to
+    // launchers.json apply without reloading the shell.
+    FileView {
+        id: launcherFile
+        path: Qt.resolvedUrl("launchers.json")
+        blockLoading: true      // populated before the bar first paints
+        watchChanges: true
+        onFileChanged: launcherFile.reload()
+        onLoaded: {
+            try {
+                root.launcherItems = JSON.parse(launcherFile.text())
+            } catch (e) {
+                console.error("launchers.json parse error:", e)
+            }
+        }
+        onLoadFailed: err => console.error("launchers.json load failed:", err)
+    }
+    // ── Gmail (IMAP via ~/bin/gmail-unread) ───────────────────────────
+    // Polls rather than pushes; 2 minutes is well under any rate limit.
+    // The mailChecking guard matters because IMAP logins are slow — without
+    // it a stalled connection would stack up a process per timer tick.
+    property int mailCount: 0
+    property var mailMessages: []
+    property string mailError: ""
+    property bool mailChecking: false
+
+    function checkMail() {
+        if (root.mailChecking) return
+        root.mailChecking = true
+        mailProc.running = true
+    }
+
+    Process {
+        id: mailProc
+        command: [Quickshell.env("HOME") + "/bin/gmail-unread"]
+        stdout: StdioCollector {
+            id: mailOut
+            onStreamFinished: {
+                try {
+                    var r = JSON.parse(mailOut.text.trim())
+                    if (r.error) {
+                        root.mailError = r.error
+                        root.mailCount = 0
+                        root.mailMessages = []
+                    } else {
+                        root.mailError = ""
+                        root.mailCount = r.count || 0
+                        root.mailMessages = r.messages || []
+                    }
+                } catch (e) {
+                    root.mailError = "bad output from gmail-unread"
+                }
+            }
+        }
+        onExited: root.mailChecking = false
+    }
+    Timer {
+        interval: 120000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkMail()
+    }
+    // Reading one message in place. The uid is the IMAP UID from the list;
+    // it stays valid as the mailbox changes, unlike a sequence number.
+    property string mailBodyUid: ""
+    property string mailBodyFrom: ""
+    property string mailBodySubject: ""
+    property string mailBodyDate: ""
+    property string mailBodyMsgid: ""
+    property string mailBodyText: ""
+    property string mailBodyError: ""
+    property bool mailBodyLoading: false
+
+    function openMailBody(m) {
+        if (!m || !m.uid) return
+        root.activePopup = ""      // the reader is its own window now
+        root.mailBodyUid = m.uid
+        root.mailBodyFrom = m.from
+        root.mailBodySubject = m.subject
+        root.mailBodyDate = m.date || ""
+        root.mailBodyMsgid = m.msgid || ""
+        root.mailBodyText = ""
+        root.mailBodyError = ""
+        root.mailBodyLoading = true
+        mailBodyProc.command = [Quickshell.env("HOME") + "/bin/gmail-unread",
+                                "body", m.uid]
+        mailBodyProc.running = true
+    }
+    function closeMailBody() {
+        mailBodyProc.running = false
+        root.mailBodyUid = ""
+        root.mailBodyText = ""
+        root.mailBodyError = ""
+        root.mailBodyLoading = false
+    }
+    // Opens the message itself in Gmail via its RFC822 Message-ID
+    function openInGmail() {
+        var url = "https://mail.google.com/"
+        if (root.mailBodyMsgid !== "") {
+            url += "mail/u/0/#search/rfc822msgid:"
+                 + encodeURIComponent(root.mailBodyMsgid)
+        }
+        root.activePopup = ""
+        root.closeMailBody()
+        mailOpenProc.command = ["xdg-open", url]
+        mailOpenProc.running = true
+    }
+
+    Process {
+        id: mailBodyProc
+        stdout: StdioCollector {
+            id: mailBodyOut
+            onStreamFinished: {
+                try {
+                    var r = JSON.parse(mailBodyOut.text.trim())
+                    if (r.error) root.mailBodyError = r.error
+                    else root.mailBodyText = r.body || ""
+                } catch (e) {
+                    root.mailBodyError = "bad output from gmail-unread"
+                }
+            }
+        }
+        onExited: root.mailBodyLoading = false
+    }
+    Process { id: mailOpenProc; command: ["xdg-open", "https://mail.google.com/"] }
+    // ── Ask Claude ────────────────────────────────────────────────────
+    // Quick: small floating box, answer replaces, no session.
+    // Chat:  larger floating window, transcript kept, session threaded.
+    // Both are FloatingWindows, so Hyprland manages focus and placement
+    // like any other window — no layer-shell focus grab.
+    property bool askOpen: false
+    property bool askChat: false          // false = quick, true = chat
+    property string askSession: ""
+    property string askErrorText: ""
+    property bool askBusy: false
+    property var askTranscript: []
+    property string askLastQuestion: ""
+    property string askLastAnswer: ""
+    // Aliases track the newest model in each family. Empty id means no
+    // --model flag at all, so Claude Code uses its configured default.
+    readonly property var askModels: [
+        { "id": "",       "label": "default" },
+        { "id": "haiku",  "label": "Haiku" },
+        { "id": "sonnet", "label": "Sonnet" },
+        { "id": "opus",   "label": "Opus" },
+        { "id": "fable",  "label": "Fable" },
+        { "id": "best",   "label": "Best" }
+    ]
+    property int askModelIndex: 0
+    readonly property string askModelLabel: root.askModels[root.askModelIndex].label
+    function askCycleModel(delta) {
+        var n = root.askModels.length
+        root.askModelIndex = (root.askModelIndex + delta + n) % n
+    }
+    function uuid4() {
+        var h = "0123456789abcdef"
+        var out = ""
+        for (var i = 0; i < 36; i++) {
+            if (i === 8 || i === 13 || i === 18 || i === 23) out += "-"
+            else if (i === 14) out += "4"
+            else if (i === 19) out += h[Math.floor(Math.random() * 4) + 8]
+            else out += h[Math.floor(Math.random() * 16)]
+        }
+        return out
+    }
+    function askAppend(role, text) {
+        var t = root.askTranscript.slice()
+        t.push({ "role": role, "text": text })
+        root.askTranscript = t
+    }
+    function askNewSession() {
+        root.askSession = ""
+        root.askTranscript = []
+        root.askLastQuestion = ""
+        root.askLastAnswer = ""
+        root.askErrorText = ""
+    }
+    function askSetMode(chat) {
+        if (root.askChat === chat) return
+        root.askCancel()
+        root.askChat = chat
+        root.askNewSession()
+    }
+    function askSend(q) {
+        var text = (q || "").trim()
+        if (text === "" || root.askBusy) return
+        // --print has no way to show a permission prompt, so anything that
+        // would ask is denied outright. This settings file pre-approves the
+        // file tools under ~/dev/claude, the agent working tree.
+        var args = ["--print", "--settings",
+                    Quickshell.env("HOME") + "/dev/claude/quickshell/ask-settings.json"]
+        var model = root.askModels[root.askModelIndex].id
+        if (model !== "") args.push("--model", model)
+        if (root.askChat) {
+            if (root.askSession === "") {
+                root.askSession = root.uuid4()
+                args.push("--session-id", root.askSession)
+            } else {
+                args.push("--resume", root.askSession)
+            }
+            root.askAppend("you", text)
+        } else {
+            root.askLastQuestion = text
+            root.askLastAnswer = ""
+        }
+        args.push(text)
+        root.askErrorText = ""
+        root.askBusy = true
+        // The sh wrapper closes stdin, so Claude Code doesn't spend 3s
+        // waiting for a pipe that never comes. "$@" passes the prompt as a
+        // real argv entry, so there's nothing to quote or escape.
+        askProc.command = ["sh", "-c", "exec claude \"$@\" </dev/null", "claude"].concat(args)
+        askProc.running = true
+    }
+    function askCancel() {
+        if (!root.askBusy) return
+        askProc.running = false
+        root.askBusy = false
+    }
+    function openAsk() {
+        root.activePopup = ""
+        root.askSetMode(false)   // always come back in Quick
+        root.askOpen = true
+    }
+    function closeAsk() {
+        root.askOpen = false
+        root.askCancel()
+    }
+    function toggleAsk() {
+        if (sessionLock.locked) return
+        if (root.askOpen) root.closeAsk()
+        else root.openAsk()
+    }
+    Process {
+        id: askProc
+        workingDirectory: Quickshell.env("HOME")
+        stdout: StdioCollector {
+            id: askOut
+            onStreamFinished: {
+                var t = askOut.text.trim()
+                if (t === "") return
+                if (root.askChat) root.askAppend("claude", t)
+                else root.askLastAnswer = t
+            }
+        }
+        stderr: StdioCollector {
+            id: askErr
+            onStreamFinished: {
+                // Drop Claude Code's own warnings; only show real errors
+                var keep = askErr.text.split("\n").filter(function (l) {
+                    var s = l.trim()
+                    return s !== "" && s.indexOf("Warning:") !== 0
+                })
+                root.askErrorText = keep.join("\n").trim()
+            }
+        }
+        onExited: root.askBusy = false
+    }
+    // ── System tray ───────────────────────────────────────────────────
+    // Importing Quickshell.Services.SystemTray registers this shell as the
+    // StatusNotifier host, which is what makes tray icons appear at all.
+    readonly property var trayItems: {
+        var t = SystemTray.items
+        if (!t) return []
+        return (t.values !== undefined) ? t.values : t
+    }
+    // ── Display power ─────────────────────────────────────────────────
+    // hypridle's own dpms listener never fires while the lock surface is up,
+    // so the blank timer lives here instead — inside the process that owns
+    // the lock state, where nothing external can reset it.
+    Process {
+        id: dpmsOff
+        command: ["sh", "-c",
+                  "hyprctl dispatch 'hl.dsp.dpms({ action = \"off\" })'; /home/ashep/bin/lights_off"]
+    }
+    Process {
+        id: dpmsOn
+        command: ["sh", "-c",
+                  "hyprctl dispatch 'hl.dsp.dpms({ action = \"on\" })'; /home/ashep/bin/lights_on"]
+    }
+    Timer {
+        id: lockBlank
+        interval: root.lockBlankDelayMs
+        repeat: false
+        onTriggered: if (sessionLock.locked) dpmsOff.running = true
+    }
+    // ── Session lock (ext-session-lock-v1 + PAM) ──────────────────────
+    // The compositor keeps the screen blanked even if this process dies,
+    // which is what makes a self-written lock screen safe.
+    property string lockPassword: ""
+    property string lockError: ""
+    property bool lockBusy: false
+    function lockSession() {
+        root.activePopup = ""
+        root.closeAppLauncher()
+        root.closeAsk()
+        root.lockPassword = ""
+        root.lockError = ""
+        root.lockBusy = false
+        sessionLock.locked = true
+    }
+    function submitPassword() {
+        if (root.lockBusy || root.lockPassword === "") return
+        root.lockError = ""
+        root.lockBusy = true
+        pam.start()
+    }
+    PamContext {
+        id: pam
+        // Reads /etc/pam.d/login. A dedicated /etc/pam.d/quickshell stack
+        // avoids pam_securetty in non-tty contexts if this ever misbehaves.
+        config: "login"
+        onPamMessage: {
+            if (pam.responseRequired) pam.respond(root.lockPassword)
+        }
+        onCompleted: result => {
+            root.lockBusy = false
+            root.lockPassword = ""
+            if (result === PamResult.Success) {
+                root.lockError = ""
+                sessionLock.locked = false
+            } else if (result === PamResult.MaxTries) {
+                root.lockError = "Too many attempts"
+            } else {
+                root.lockError = "Authentication failed"
+            }
+        }
+    }
+    WlSessionLock {
+        id: sessionLock
+        locked: false
+        WlSessionLockSurface {
+            id: lockSurface
+            color: "#000000"
+            // Any input on the lock screen wakes the displays and restarts
+            // the countdown, so typing your password doesn't blank mid-entry.
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.AllButtons
+                onPositionChanged: root.wakeWhileLocked()
+                onPressed: root.wakeWhileLocked()
+            }
+            Rectangle {
+                id: lockCard
+                anchors.centerIn: parent
+                width: 380
+                height: lockCol.implicitHeight + 40
+                radius: root.widgetRadius + 4
+                color: root.colPopupBg
+                border.color: root.colPurpleBorder
+                border.width: root.borderWidth
+                Column {
+                    id: lockCol
+                    anchors.centerIn: parent
+                    width: parent.width - 48
+                    spacing: 14
+                    Text {
+                        text: root.currentTime
+                        color: root.colFg
+                        font.family: root.fontFamily
+                        font.pixelSize: 44
+                        font.bold: true
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Text {
+                        text: root.currentDate
+                        color: root.colFgDim
+                        font.family: root.fontFamily
+                        font.pixelSize: 13
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    // Unread mail is a useful thing to see before unlocking
+                    Text {
+                        visible: root.mailCount > 0
+                        text: "󰇮  " + root.mailCount + " unread"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 12
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: root.colPurpleBorder
+                        opacity: 0.4
+                    }
+                    // ── Password field ───────────────────────────────
+                    Rectangle {
+                        width: parent.width
+                        height: 42
+                        radius: root.widgetRadius
+                        color: root.colPopupInset
+                        border.color: root.lockError !== "" ? root.colRed : root.colPurpleBorder
+                        border.width: 1
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 10
+                            Text {
+                                text: ""
+                                color: root.colPurpleGlow
+                                font.family: root.fontFamily
+                                font.pixelSize: 15
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item {
+                                width: parent.width - 40
+                                height: parent.height
+                                TextInput {
+                                    id: lockInput
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                    focus: true
+                                    enabled: !root.lockBusy
+                                    echoMode: TextInput.Password
+                                    passwordCharacter: "•"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 15
+                                    clip: true
+                                    onTextChanged: {
+                                        root.lockPassword = text
+                                        root.wakeWhileLocked()
+                                    }
+                                    Keys.onPressed: root.wakeWhileLocked()
+                                    Keys.onReturnPressed: root.submitPassword()
+                                    Keys.onEnterPressed: root.submitPassword()
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: lockInput.text === "" && !root.lockBusy
+                                    text: "Password"
+                                    color: root.colFgDim
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 15
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: root.lockBusy ? "Checking..."
+                                            : (root.lockError !== "" ? root.lockError : " ")
+                        color: root.lockError !== "" ? root.colRed : root.colFgDim
+                        font.family: root.fontFamily
+                        font.pixelSize: 11
+                    }
+                }
+            }
+            // Keep the caret in the password box whenever the lock appears,
+            // including on a second monitor's surface.
+            Component.onCompleted: lockInput.forceActiveFocus()
+        }
+        onLockedChanged: {
+            if (sessionLock.locked) {
+                lockBlank.restart()
+            } else {
+                lockBlank.stop()
+                dpmsOn.running = true
+                root.lockPassword = ""
+                root.lockError = ""
+            }
+        }
+    }
+    // Wake the displays and restart the blank countdown while locked
+    function wakeWhileLocked() {
+        if (!sessionLock.locked) return
+        if (!lockBlank.running) dpmsOn.running = true
+        lockBlank.restart()
+    }
+    // ── Native app launcher ───────────────────────────────────────────
+    property bool appLauncherOpen: false
+    property string appQuery: ""
+    property int appIndex: 0
+    property var appLauncherScreen: null
+    readonly property var allApps: {
+        var a = DesktopEntries.applications
+        if (!a) return []
+        return (a.values !== undefined) ? a.values : a
+    }
+    function appMatches(query) {
+        var q = query.trim().toLowerCase()
+        var out = []
+        for (var i = 0; i < root.allApps.length; i++) {
+            var e = root.allApps[i]
+            if (!e || e.noDisplay) continue
+            if (q !== "") {
+                var hay = ((e.name || "") + " " + (e.genericName || "") + " "
+                           + (e.comment || "") + " " + (e.id || "")).toLowerCase()
+                if (hay.indexOf(q) === -1) continue
+            }
+            out.push(e)
+        }
+        // Name-prefix hits float to the top, then alphabetical
+        out.sort(function (a, b) {
+            var an = (a.name || "").toLowerCase()
+            var bn = (b.name || "").toLowerCase()
+            var ap = an.indexOf(q) === 0 ? 0 : 1
+            var bp = bn.indexOf(q) === 0 ? 0 : 1
+            if (ap !== bp) return ap - bp
+            return an < bn ? -1 : (an > bn ? 1 : 0)
+        })
+        return out
+    }
+    readonly property var appResults: root.appMatches(root.appQuery)
+    function focusedScreen() {
+        var fm = Hyprland.focusedMonitor
+        if (fm) {
+            for (var i = 0; i < Quickshell.screens.length; i++) {
+                if (Quickshell.screens[i].name === fm.name) return Quickshell.screens[i]
+            }
+        }
+        return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+    }
+    function openAppLauncher() {
+        root.activePopup = ""
+        root.appQuery = ""
+        root.appIndex = 0
+        root.appLauncherScreen = root.focusedScreen()
+        root.appLauncherOpen = true
+    }
+    function closeAppLauncher() {
+        root.appLauncherOpen = false
+        root.appQuery = ""
+        root.appIndex = 0
+    }
+    function toggleAppLauncher() {
+        if (sessionLock.locked) return
+        if (root.appLauncherOpen) root.closeAppLauncher()
+        else root.openAppLauncher()
+    }
+    function runApp(entry) {
+        if (!entry) return
+        root.closeAppLauncher()
+        entry.execute()
+    }
+    function moveAppIndex(delta) {
+        var n = root.appResults.length
+        if (n === 0) { root.appIndex = 0; return }
+        root.appIndex = Math.max(0, Math.min(n - 1, root.appIndex + delta))
+    }
+    // hyprland.lua:
+    //   hl.bind(mainMod .. " + Space", hl.dsp.global("quickshell:launcher"))
+    //   hl.bind(mainMod .. " + L",     hl.dsp.global("quickshell:lock"))
+    //   hl.bind(mainMod .. " + A",     hl.dsp.global("quickshell:ask"))
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "launcher"
+        description: "Toggle the Quickshell app launcher"
+        onPressed: root.toggleAppLauncher()
+    }
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "lock"
+        description: "Lock the session"
+        onPressed: root.lockSession()
+    }
+    GlobalShortcut {
+        appid: "quickshell"
+        name: "ask"
+        description: "Ask Claude"
+        onPressed: root.toggleAsk()
+    }
+    // Fallbacks that bypass the global-shortcuts protocol:
+    //   qs ipc call launcher toggle
+    //   qs ipc call lock lock
+    //   qs ipc call ask toggle
+    //   qs ipc call mail check
+    IpcHandler {
+        target: "launcher"
+        function toggle(): void { root.toggleAppLauncher() }
+        function open(): void { root.openAppLauncher() }
+        function close(): void { root.closeAppLauncher() }
+    }
+    IpcHandler {
+        target: "lock"
+        function lock(): void { root.lockSession() }
+    }
+    IpcHandler {
+        target: "ask"
+        function toggle(): void { root.toggleAsk() }
+    }
+    IpcHandler {
+        target: "mail"
+        function check(): void { root.checkMail() }
+    }
+    PanelWindow {
+        id: appLauncherWindow
+        visible: root.appLauncherOpen
+        screen: root.appLauncherScreen
+        // Overlay layer + exclusive focus is what lets a layer-shell surface
+        // receive keystrokes at all — a PopupWindow cannot.
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+        WlrLayershell.namespace: "quickshell-launcher"
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
+        exclusiveZone: 0
+        color: "#aa000000"
+        onVisibleChanged: {
+            if (visible) {
+                appSearch.text = ""
+                appSearch.forceActiveFocus()
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.closeAppLauncher()
+        }
+        Rectangle {
+            id: appCard
+            width: 560
+            height: appCardCol.implicitHeight + 24
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: Math.round(parent.height * 0.16)
+            radius: root.widgetRadius + 4
+            color: root.colPopupBg
+            border.color: root.colPurpleBorder
+            border.width: root.borderWidth
+            MouseArea { anchors.fill: parent }
+            Column {
+                id: appCardCol
+                anchors.top: parent.top
+                anchors.topMargin: 12
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - 24
+                spacing: 10
+                Rectangle {
+                    width: parent.width
+                    height: 40
+                    radius: root.widgetRadius
+                    color: root.colPopupInset
+                    border.color: root.colPurpleBorder
+                    border.width: 1
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 10
+                        Text {
+                            text: "󰍉"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Item {
+                            width: parent.width - 40
+                            height: parent.height
+                            TextInput {
+                                id: appSearch
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                focus: true
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 15
+                                selectByMouse: true
+                                selectionColor: root.colPurple
+                                selectedTextColor: root.colFg
+                                clip: true
+                                onTextChanged: {
+                                    root.appQuery = text
+                                    root.appIndex = 0
+                                }
+                                Keys.onEscapePressed: root.closeAppLauncher()
+                                Keys.onDownPressed: root.moveAppIndex(1)
+                                Keys.onUpPressed: root.moveAppIndex(-1)
+                                Keys.onReturnPressed: root.runApp(root.appResults[root.appIndex])
+                                Keys.onEnterPressed: root.runApp(root.appResults[root.appIndex])
+                                Keys.onTabPressed: root.moveAppIndex(1)
+                                Keys.onPressed: event => {
+                                    if (event.modifiers & Qt.ControlModifier) {
+                                        if (event.key === Qt.Key_N) {
+                                            root.moveAppIndex(1)
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_P) {
+                                            root.moveAppIndex(-1)
+                                            event.accepted = true
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: appSearch.text === ""
+                                text: "Search applications..."
+                                color: root.colFgDim
+                                font.family: root.fontFamily
+                                font.pixelSize: 15
+                            }
+                        }
+                    }
+                }
+                ListView {
+                    id: appList
+                    width: parent.width
+                    height: Math.min(contentHeight, 380)
+                    visible: root.appResults.length > 0
+                    clip: true
+                    model: root.appResults
+                    currentIndex: root.appIndex
+                    highlightFollowsCurrentItem: true
+                    highlightMoveDuration: 90
+                    boundsBehavior: Flickable.StopAtBounds
+                    spacing: 2
+                    delegate: Rectangle {
+                        id: appRow
+                        required property var modelData
+                        required property int index
+                        readonly property bool selected: appRow.index === root.appIndex
+                        width: appList.width
+                        height: 48
+                        radius: 6
+                        color: appRow.selected ? root.colPurple
+                                               : (appRowMa.containsMouse ? root.colPopupHover : "transparent")
+                        border.color: appRow.selected ? root.colPurpleGlow : "transparent"
+                        border.width: appRow.selected ? 1 : 0
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 12
+                            Item {
+                                width: 28
+                                height: 28
+                                anchors.verticalCenter: parent.verticalCenter
+                                // Drawn first, so it shows through if the icon
+                                // fails to resolve (IconImage renders nothing).
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: (appRow.modelData.name || "?").charAt(0).toUpperCase()
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                }
+                                IconImage {
+                                    anchors.fill: parent
+                                    source: appRow.modelData.icon ? ("image://icon/" + appRow.modelData.icon) : ""
+                                }
+                            }
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 52
+                                spacing: 1
+                                Text {
+                                    text: appRow.modelData.name || appRow.modelData.id
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    font.bold: appRow.selected
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    visible: text !== ""
+                                    text: appRow.modelData.comment || appRow.modelData.genericName || ""
+                                    color: root.colFgDim
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 10
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: appRowMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: root.appIndex = appRow.index
+                            onClicked: root.runApp(appRow.modelData)
+                        }
+                    }
+                }
+                Text {
+                    visible: root.appResults.length === 0
+                    text: "No matches"
+                    color: root.colFgDim
+                    font.family: root.fontFamily
+                    font.pixelSize: 12
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    topPadding: 10
+                    bottomPadding: 10
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.colPurpleBorder
+                    opacity: 0.3
+                }
+                Text {
+                    text: root.appResults.length + " app" + (root.appResults.length === 1 ? "" : "s")
+                          + "  ·  ↑↓ navigate  ·  ⏎ launch  ·  esc close"
+                    color: root.colFgDim
+                    font.family: root.fontFamily
+                    font.pixelSize: 10
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+    }
+    // ── Ask: shared mode switch ───────────────────────────────────────
+    component AskModeSwitch: Row {
+        spacing: 8
+        Text {
+            text: "Quick"
+            color: root.askChat ? root.colFgDim : root.colFg
+            font.family: root.fontFamily
+            font.pixelSize: 11
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        Rectangle {
+            width: 42
+            height: 22
+            radius: 11
+            color: root.askChat ? root.colPurple : root.colPopupInset
+            border.color: root.colPurpleBorder
+            border.width: 1
+            anchors.verticalCenter: parent.verticalCenter
+            Rectangle {
+                width: 16
+                height: 16
+                radius: 8
+                y: 3
+                x: root.askChat ? parent.width - width - 3 : 3
+                color: root.colFg
+                Behavior on x {
+                    NumberAnimation { duration: 110; easing.type: Easing.OutCubic }
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.askSetMode(!root.askChat)
+            }
+        }
+        Text {
+            text: "Chat"
+            color: root.askChat ? root.colFg : root.colFgDim
+            font.family: root.fontFamily
+            font.pixelSize: 11
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+    // ── Ask: model picker ─────────────────────────────────────────────
+    // Left-click cycles forward, right-click back, Ctrl+M from the input.
+    component AskModelPicker: Rectangle {
+        width: modelLabel.implicitWidth + 22
+        height: 22
+        radius: 11
+        color: modelMa.containsMouse ? root.colHover : root.colPopupInset
+        border.color: root.colPurpleBorder
+        border.width: 1
+        Text {
+            id: modelLabel
+            anchors.centerIn: parent
+            text: "󰧑 " + root.askModelLabel
+            color: root.colFg
+            font.family: root.fontFamily
+            font.pixelSize: 11
+        }
+        MouseArea {
+            id: modelMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => root.askCycleModel(mouse.button === Qt.RightButton ? -1 : 1)
+        }
+    }
+    // ── Ask: quick box ────────────────────────────────────────────────
+    FloatingWindow {
+        id: quickWindow
+        title: "Ask Claude"
+        visible: root.askOpen && !root.askChat
+        // The body (question + answer) is measured at a fixed width, so its
+        // height never depends on the window height — no binding loop.
+        readonly property int baseHeight: 108
+        readonly property bool hasBody: root.askLastQuestion !== "" || root.askErrorText !== ""
+        readonly property int bodyHeight: hasBody
+            ? Math.max(60, Math.min(quickBody.implicitHeight + 12, 560)) : 0
+        readonly property int targetHeight: baseHeight + bodyHeight
+        implicitWidth: 620
+        implicitHeight: targetHeight
+        // Pinning min and max to the target forces the compositor to honor
+        // the resize; implicitHeight alone is only a suggestion.
+        minimumSize: Qt.size(620, targetHeight)
+        maximumSize: Qt.size(620, targetHeight)
+        color: root.colPopupBg
+        onVisibleChanged: if (visible) quickInput.forceActiveFocus()
+        Rectangle {
+            anchors.fill: parent
+            color: root.colPopupBg
+            border.color: root.colPurpleBorder
+            border.width: root.borderWidth
+            Column {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
+                Row {
+                    width: parent.width
+                    Text {
+                        text: "󰭹  Ask"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 12
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Item { width: parent.width - 300; height: 1 }
+                    AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
+                    Item { width: 8; height: 1 }
+                    AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 38
+                    radius: root.widgetRadius
+                    color: root.colPopupInset
+                    border.color: root.colPurpleBorder
+                    border.width: 1
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 10
+                        Text {
+                            text: "󰅂"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 14
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Item {
+                            width: parent.width - 36
+                            height: parent.height
+                            TextInput {
+                                id: quickInput
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                focus: true
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 14
+                                selectByMouse: true
+                                selectionColor: root.colPurple
+                                selectedTextColor: root.colFg
+                                clip: true
+                                Keys.onEscapePressed: {
+                                    if (root.askBusy) root.askCancel()
+                                    else root.closeAsk()
+                                }
+                                Keys.onTabPressed: root.askSetMode(true)
+                                Keys.onReturnPressed: {
+                                    root.askSend(quickInput.text)
+                                    quickInput.text = ""
+                                }
+                                Keys.onEnterPressed: {
+                                    root.askSend(quickInput.text)
+                                    quickInput.text = ""
+                                }
+                                Keys.onPressed: event => {
+                                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
+                                        root.askCycleModel(1)
+                                        event.accepted = true
+                                    }
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: quickInput.text === ""
+                                text: root.askBusy ? "Thinking... (esc cancels)" : "Ask a quick question..."
+                                color: root.colFgDim
+                                font.family: root.fontFamily
+                                font.pixelSize: 14
+                            }
+                        }
+                    }
+                }
+                // ── Question + answer ────────────────────────────────
+                Flickable {
+                    id: quickFlick
+                    width: parent.width
+                    height: quickWindow.bodyHeight
+                    visible: quickWindow.hasBody
+                    clip: true
+                    contentHeight: quickBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: quickBody
+                        width: quickFlick.width
+                        spacing: 6
+                        Text {
+                            visible: root.askLastQuestion !== ""
+                            width: parent.width
+                            text: "› " + root.askLastQuestion
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 11
+                            wrapMode: Text.Wrap
+                        }
+                        // TextEdit rather than Text so the reply can be
+                        // selected and copied with the mouse.
+                        TextEdit {
+                            id: quickAnswer
+                            width: parent.width
+                            readOnly: true
+                            selectByMouse: true
+                            selectionColor: root.colPurple
+                            selectedTextColor: root.colFg
+                            text: root.askErrorText !== "" ? root.askErrorText
+                                : (root.askLastAnswer !== "" ? root.askLastAnswer
+                                : (root.askBusy ? "…" : ""))
+                            color: root.askErrorText !== "" ? root.colRed
+                                 : (root.askLastAnswer !== "" ? root.colFg : root.colFgDim)
+                            font.family: root.fontFamily
+                            font.pixelSize: 14
+                            wrapMode: TextEdit.Wrap
+                            textFormat: TextEdit.PlainText
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // ── Ask: chat window ──────────────────────────────────────────────
+    FloatingWindow {
+        id: chatWindow
+        title: "Claude Chat"
+        visible: root.askOpen && root.askChat
+        implicitWidth: 900
+        implicitHeight: 650
+        color: root.colPopupBg
+        onVisibleChanged: if (visible) chatInput.forceActiveFocus()
+        Rectangle {
+            anchors.fill: parent
+            color: root.colPopupBg
+            border.color: root.colPurpleBorder
+            border.width: root.borderWidth
+            Column {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    Text {
+                        text: "󰭹  Claude"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Item { width: parent.width - 370; height: 1 }
+                    AskModelPicker { anchors.verticalCenter: parent.verticalCenter }
+                    AskModeSwitch { anchors.verticalCenter: parent.verticalCenter }
+                    Rectangle {
+                        width: 56
+                        height: 24
+                        radius: 6
+                        color: newMa.containsMouse ? root.colHover : "transparent"
+                        border.color: root.colPurpleBorder
+                        border.width: 1
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            anchors.centerIn: parent
+                            text: "New"
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: newMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.askNewSession()
+                        }
+                    }
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.colPurpleBorder
+                    opacity: 0.3
+                }
+                ListView {
+                    id: chatList
+                    width: parent.width
+                    height: parent.height - 130
+                    clip: true
+                    spacing: 12
+                    model: root.askTranscript
+                    boundsBehavior: Flickable.StopAtBounds
+                    onCountChanged: chatList.positionViewAtEnd()
+                    delegate: Column {
+                        required property var modelData
+                        width: chatList.width
+                        spacing: 3
+                        Text {
+                            text: modelData.role === "you" ? "you" : "claude"
+                            color: modelData.role === "you" ? root.colFgDim : root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+                        TextEdit {
+                            text: modelData.text
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: 12
+                            width: parent.width
+                            readOnly: true
+                            selectByMouse: true
+                            selectionColor: root.colPurple
+                            selectedTextColor: root.colFg
+                            wrapMode: TextEdit.Wrap
+                            textFormat: TextEdit.PlainText
+                        }
+                    }
+                }
+                Text {
+                    visible: root.askBusy || root.askErrorText !== ""
+                    width: parent.width
+                    text: root.askBusy ? "Thinking... (esc to cancel)" : root.askErrorText
+                    color: root.askErrorText !== "" ? root.colRed : root.colFgDim
+                    font.family: root.fontFamily
+                    font.pixelSize: 10
+                    wrapMode: Text.Wrap
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 40
+                    radius: root.widgetRadius
+                    color: root.colPopupInset
+                    border.color: root.colPurpleBorder
+                    border.width: 1
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 10
+                        Text {
+                            text: "󰅂"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 15
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Item {
+                            width: parent.width - 36
+                            height: parent.height
+                            TextInput {
+                                id: chatInput
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                focus: true
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 14
+                                selectByMouse: true
+                                selectionColor: root.colPurple
+                                selectedTextColor: root.colFg
+                                clip: true
+                                Keys.onEscapePressed: {
+                                    if (root.askBusy) root.askCancel()
+                                    else root.closeAsk()
+                                }
+                                Keys.onReturnPressed: {
+                                    root.askSend(chatInput.text)
+                                    chatInput.text = ""
+                                }
+                                Keys.onEnterPressed: {
+                                    root.askSend(chatInput.text)
+                                    chatInput.text = ""
+                                }
+                                Keys.onPressed: event => {
+                                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
+                                        root.askCycleModel(1)
+                                        event.accepted = true
+                                    }
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: chatInput.text === ""
+                                text: "Continue the conversation..."
+                                color: root.colFgDim
+                                font.family: root.fontFamily
+                                font.pixelSize: 14
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // ── Mail: message reader ──────────────────────────────────────────
+    // A FloatingWindow like the chat panel, so Hyprland places and focuses
+    // it normally and it isn't cramped inside the bar popup.
+    FloatingWindow {
+        id: mailReader
+        title: "Mail"
+        visible: root.mailBodyUid !== ""
+        implicitWidth: 900
+        implicitHeight: 700
+        color: root.colPopupBg
+        Rectangle {
+            anchors.fill: parent
+            color: root.colPopupBg
+            border.color: root.colPurpleBorder
+            border.width: root.borderWidth
+            Column {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+                // ── Header ───────────────────────────────────────────
+                Row {
+                    width: parent.width
+                    spacing: 10
+                    Text {
+                        text: "󰇮  Message"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 14
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Item { width: parent.width - 300; height: 1 }
+                    Text {
+                        text: root.mailBodyLoading ? "loading…" : root.mailBodyDate
+                        color: root.colFgDim
+                        font.family: root.fontFamily
+                        font.pixelSize: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Rectangle {
+                        width: 68
+                        height: 26
+                        radius: 6
+                        color: mailCloseMa.containsMouse ? root.colHover : "transparent"
+                        border.color: root.colPurpleBorder
+                        border.width: 1
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Close"
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 12
+                        }
+                        MouseArea {
+                            id: mailCloseMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.closeMailBody()
+                        }
+                    }
+                }
+                Text {
+                    text: root.mailBodyFrom
+                    color: root.colFg
+                    font.family: root.fontFamily
+                    font.pixelSize: 15
+                    font.bold: true
+                    width: parent.width
+                    elide: Text.ElideRight
+                }
+                Text {
+                    text: root.mailBodySubject
+                    color: root.colPurpleGlow
+                    font.family: root.fontFamily
+                    font.pixelSize: 14
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.colPurpleBorder
+                    opacity: 0.3
+                }
+                // ── Body ─────────────────────────────────────────────
+                Flickable {
+                    id: mailBodyFlick
+                    width: parent.width
+                    height: parent.height - 190
+                    clip: true
+                    contentHeight: mailBodyText.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    TextEdit {
+                        id: mailBodyText
+                        width: mailBodyFlick.width
+                        readOnly: true
+                        selectByMouse: true
+                        selectionColor: root.colPurple
+                        selectedTextColor: root.colFg
+                        text: root.mailBodyError !== "" ? root.mailBodyError
+                            : (root.mailBodyLoading ? "…" : root.mailBodyText)
+                        color: root.mailBodyError !== "" ? root.colRed : root.colFg
+                        font.family: root.fontFamily
+                        font.pixelSize: 14
+                        wrapMode: TextEdit.Wrap
+                        textFormat: TextEdit.PlainText
+                        Keys.onEscapePressed: root.closeMailBody()
+                    }
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.colPurpleBorder
+                    opacity: 0.3
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 32
+                    radius: 6
+                    color: mailGmailMa.containsMouse ? root.colHover : "transparent"
+                    border.color: root.colPurpleBorder
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Open this in Gmail"
+                        color: root.colFg
+                        font.family: root.fontFamily
+                        font.pixelSize: 13
+                    }
+                    MouseArea {
+                        id: mailGmailMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openInGmail()
+                    }
+                }
+            }
+        }
+    }
+    // ── Network via NetworkManager (Quickshell.Networking) ────────────
+    // Live D-Bus properties, so no polling. NetworkDevice gives name, MAC,
+    // type, connected state and a per-device network list — but no IP,
+    // gateway, DNS or MTU, so the drill-down below still shells to nmcli.
+    readonly property var netDevices: {
+        var d = Networking.devices
+        if (!d) return []
+        return (d.values !== undefined) ? d.values : d
+    }
+    readonly property var primaryDevice: {
+        var wired = null, wifi = null, any = null
+        for (var i = 0; i < root.netDevices.length; i++) {
+            var dev = root.netDevices[i]
+            if (!dev || !dev.connected) continue
+            if (dev.type === DeviceType.Wired && !wired) wired = dev
+            else if (dev.type === DeviceType.Wifi && !wifi) wifi = dev
+            if (!any) any = dev
+        }
+        return wired || wifi || any
+    }
+    readonly property bool networkConnected: root.primaryDevice !== null
+                                             && root.primaryDevice !== undefined
+    readonly property string networkName: {
+        var dev = root.primaryDevice
+        if (!dev) return "None"
+        var n = root.activeNetworkOf(dev)
+        return n ? n.name : dev.name
+    }
+    function activeNetworkOf(dev) {
+        if (!dev || !dev.networks) return null
+        var nets = (dev.networks.values !== undefined) ? dev.networks.values : dev.networks
+        for (var i = 0; i < nets.length; i++) {
+            if (nets[i] && nets[i].connected) return nets[i]
+        }
+        return null
+    }
+    function deviceTypeName(t) {
+        if (t === DeviceType.Wifi) return "wifi"
+        if (t === DeviceType.Wired) return "ethernet"
+        return "other"
+    }
+    // ── Per-interface detail drill-down (nmcli — IP data isn't in the API)
+    property string selectedIface: ""
+    property var ifaceDetail: ({})
+    property var ifaceDetailPairs: root.buildDetailPairs(root.ifaceDetail)
+    function selectIface(dev) {
+        if (root.selectedIface === dev) {
+            root.selectedIface = ""
+            root.ifaceDetail = ({})
+            return
+        }
+        root.selectedIface = dev
+        root.ifaceDetail = ({})
+        ifaceDetailProc.running = false
+        ifaceDetailProc.command = ["sh", "-c",
+            "nmcli -t -f GENERAL.STATE,GENERAL.MTU,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,IP6.ADDRESS device show " + dev]
+        ifaceDetailProc.running = true
+    }
+    function buildDetailPairs(d) {
+        var out = []
+        if (!d) return out
+        if (d["IP4.ADDRESS"])  out.push({ "k": "IPv4",    "v": d["IP4.ADDRESS"] })
+        if (d["IP4.GATEWAY"])  out.push({ "k": "Gateway", "v": d["IP4.GATEWAY"] })
+        if (d["IP4.DNS"])      out.push({ "k": "DNS",     "v": d["IP4.DNS"] })
+        if (d["IP6.ADDRESS"])  out.push({ "k": "IPv6",    "v": d["IP6.ADDRESS"] })
+        if (d["GENERAL.MTU"])  out.push({ "k": "MTU",     "v": d["GENERAL.MTU"] })
+        if (d["GENERAL.STATE"]) out.push({ "k": "State",  "v": d["GENERAL.STATE"] })
+        return out
+    }
+    Process {
+        id: ifaceDetailProc
+        stdout: SplitParser {
+            onRead: data => {
+                var line = data.trim()
+                if (line === "") return
+                // nmcli -t escapes colons inside values as "\:" — split on the
+                // first UNescaped colon so addresses survive intact.
+                var m = line.match(/^((?:[^:\\]|\\.)+):(.*)$/)
+                if (!m) return
+                var key = m[1].replace(/\[\d+\]/g, "")   // IP4.ADDRESS[1] -> IP4.ADDRESS
+                var val = m[2].replace(/\\:/g, ":").trim()
+                if (val === "" || val === "--") return
+                var d = {}
+                for (var k in root.ifaceDetail) d[k] = root.ifaceDetail[k]
+                d[key] = d[key] ? (d[key] + ", " + val) : val
+                root.ifaceDetail = d
+            }
+        }
+    }
+    // ── Calendar state ────────────────────────────────────────────────
+    property date calRef: new Date()
+    property int calEpoch: 0          // bumped at midnight so "today" restyles
+    property var calCells: root.buildCalendar(root.calRef, root.calEpoch)
+    readonly property var calDayNames: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    function buildCalendar(ref, epoch) {
+        var year = ref.getFullYear()
+        var month = ref.getMonth()
+        var now = new Date()
+        var startDow = new Date(year, month, 1).getDay()
+        var daysInMonth = new Date(year, month + 1, 0).getDate()
+        var cells = []
+        for (var i = 0; i < startDow; i++) {
+            cells.push({ "day": 0, "current": false, "isToday": false })
+        }
+        for (var d = 1; d <= daysInMonth; d++) {
+            cells.push({
+                "day": d,
+                "current": true,
+                "isToday": (d === now.getDate() && month === now.getMonth() && year === now.getFullYear())
+            })
+        }
+        while (cells.length % 7 !== 0) {
+            cells.push({ "day": 0, "current": false, "isToday": false })
+        }
+        return cells
+    }
+    function calShift(delta) {
+        root.calRef = new Date(root.calRef.getFullYear(), root.calRef.getMonth() + delta, 1)
+    }
+    function calToday() {
+        root.calRef = new Date()
+    }
+    onCurrentDateChanged: root.calEpoch = root.calEpoch + 1
+    // ── Volume via PipeWire ───────────────────────────────────────────
+    // PwObjectTracker is what makes a node's properties live — without the
+    // node sitting in a tracker, audio.volume/muted never bind.
+    PwObjectTracker {
+        objects: [Pipewire.defaultAudioSink]
+    }
+    readonly property var audioSink: Pipewire.defaultAudioSink
+    readonly property int volumePercent: (root.audioSink && root.audioSink.audio)
+                                         ? Math.round(root.audioSink.audio.volume * 100) : 0
+    readonly property bool volumeMuted: (root.audioSink && root.audioSink.audio)
+                                        ? root.audioSink.audio.muted : false
+    readonly property int volumeDisplay: root.volumePercent
+    property bool volumeDragging: false   // knob scale only now
+    function setVolume(pct) {
+        if (!root.audioSink || !root.audioSink.audio) return
+        root.audioSink.audio.volume = Math.max(0, Math.min(100, Math.round(pct))) / 100
+    }
+    function nudgeVolume(delta) {
+        root.setVolume(root.volumeDisplay + delta)
+    }
+    function toggleMute() {
+        if (!root.audioSink || !root.audioSink.audio) return
+        root.audioSink.audio.muted = !root.audioSink.audio.muted
+    }
+    onActivePopupChanged: {
+        if (root.activePopup === "network") {
+            root.selectedIface = ""
+            root.ifaceDetail = ({})
+        } else if (root.activePopup === "calendar") {
+            root.calToday()
+        } else if (root.activePopup === "mail") {
+            root.closeMailBody()  // always open on the list, not a stale message
+            root.checkMail()      // refresh rather than showing stale counts
+        }
+    }
+    // ── Shared processes ──────────────────────────────────────────────
+    Process { id: sleepProc;  command: ["systemctl", "suspend"] }
+    Process { id: rebootProc; command: ["systemctl", "reboot"] }
+    Process { id: shutProc;   command: ["systemctl", "poweroff"] }
+    // ── Bar on every screen ──────────────────────────────────────────
+    Variants {
+        model: Quickshell.screens
+        PanelWindow {
+            id: barWindow
+            property var modelData
+            screen: modelData
+            anchors {
+                bottom: true
+                left: true
+                right: true
+            }
+            implicitHeight: root.barHeight
+            color: root.colBarBg
+            // ── Click-outside overlay to dismiss popups ──────────────
+            MouseArea {
+                anchors.fill: parent
+                enabled: root.activePopup !== ""
+                z: 1
+                onClicked: root.activePopup = ""
+            }
+            // ── Mail popup ───────────────────────────────────────────
+            PopupWindow {
+                id: mailPopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 260 - root.mailPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.mailPopupWidth
+                implicitHeight: mailCol.implicitHeight + 24
+                visible: root.activePopup === "mail"
+                color: "transparent"
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "mail") {
+                        root.activePopup = ""
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Column {
+                        id: mailCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 6
+                        width: parent.width - 16
+                        Row {
+                            width: parent.width
+                            spacing: 6
+                            Text {
+                                text: "󰇰  Inbox"
+                                color: root.colPurpleGlow
+                                font.family: root.fontFamily
+                                font.pixelSize: 14
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item { width: parent.width - 170; height: 1 }
+                            Text {
+                                text: root.mailChecking ? "checking…" : (root.mailCount + " unread")
+                                color: root.colFgDim
+                                font.family: root.fontFamily
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        // ══ LIST VIEW ════════════════════════════════
+                        Text {
+                            visible: root.mailError !== ""
+                            width: parent.width
+                            text: root.mailError
+                            color: root.colRed
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                            wrapMode: Text.Wrap
+                            topPadding: 4
+                            bottomPadding: 4
+                        }
+                        // Capped height with clipping, so a full inbox
+                        // scrolls instead of running off the screen.
+                        ListView {
+                            id: mailList
+                            width: parent.width
+                            height: Math.min(contentHeight, 420)
+                            visible: root.mailMessages.length > 0
+                            clip: true
+                            model: root.mailMessages
+                            boundsBehavior: Flickable.StopAtBounds
+                            spacing: 2
+                            delegate: Rectangle {
+                                id: mailRow
+                                required property var modelData
+                                width: mailList.width
+                                height: 46
+                                radius: 6
+                                color: mailRowMa.containsMouse ? root.colPopupHover : "transparent"
+                                Column {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: 6
+                                    width: parent.width - 12
+                                    spacing: 1
+                                    Row {
+                                        width: parent.width
+                                        spacing: 6
+                                        Text {
+                                            text: mailRow.modelData.from
+                                            color: root.colFg
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 12
+                                            font.bold: true
+                                            width: parent.width - 78
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            text: mailRow.modelData.date || ""
+                                            color: root.colFgDim
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            width: 72
+                                            horizontalAlignment: Text.AlignRight
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    Text {
+                                        text: mailRow.modelData.subject
+                                        color: root.colFgDim
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        width: parent.width
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                                MouseArea {
+                                    id: mailRowMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.openMailBody(mailRow.modelData)
+                                }
+                            }
+                        }
+                        // Shown when the true unread total exceeds what we fetched
+                        Text {
+                            visible: root.mailCount > root.mailMessages.length
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "+ " + (root.mailCount - root.mailMessages.length) + " more in Gmail"
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                            topPadding: 2
+                        }
+                        Text {
+                            visible: root.mailMessages.length === 0
+                                     && root.mailError === "" && !root.mailChecking
+                            text: "No unread mail"
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 11
+                            topPadding: 6
+                            bottomPadding: 6
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 28
+                            radius: 6
+                            color: mailOpenMa.containsMouse ? root.colHover : "transparent"
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Open Gmail"
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 11
+                            }
+                            MouseArea {
+                                id: mailOpenMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    mailOpenProc.command = ["xdg-open", "https://mail.google.com/"]
+                                    mailOpenProc.running = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // ── Network popup ────────────────────────────────────────
+            PopupWindow {
+                id: networkPopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 180 - root.netPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.netPopupWidth
+                implicitHeight: netIfaceCol.implicitHeight + 24
+                visible: root.activePopup === "network"
+                color: "transparent"
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "network") {
+                        root.activePopup = ""
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Column {
+                        id: netIfaceCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 4
+                        width: parent.width - 16
+                        Text {
+                            text: "󰛳  Network Interfaces"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                            width: parent.width
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        Repeater {
+                            model: root.netDevices
+                            Rectangle {
+                                id: ifaceRow
+                                required property var modelData
+                                required property int index
+                                readonly property bool expanded: root.selectedIface === ifaceRow.modelData.name
+                                readonly property var activeNet: root.activeNetworkOf(ifaceRow.modelData)
+                                width: netIfaceCol.width
+                                height: ifaceRowCol.implicitHeight + 14
+                                radius: 6
+                                color: ifaceRow.expanded ? root.colPopupHover
+                                                         : (ifaceMa.containsMouse ? root.colHover : "transparent")
+                                Column {
+                                    id: ifaceRowCol
+                                    x: 6
+                                    y: 7
+                                    width: parent.width - 12
+                                    spacing: 6
+                                    Row {
+                                        width: parent.width
+                                        spacing: 8
+                                        Rectangle {
+                                            width: 8
+                                            height: 8
+                                            radius: 4
+                                            color: ifaceRow.modelData.connected ? root.colGreen : root.colFgDim
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Column {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - 40
+                                            Text {
+                                                text: ifaceRow.modelData.name
+                                                color: root.colFg
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                            }
+                                            Text {
+                                                text: (ifaceRow.activeNet ? ifaceRow.activeNet.name : "—")
+                                                      + " (" + root.deviceTypeName(ifaceRow.modelData.type) + ")"
+                                                color: root.colFgDim
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 10
+                                                width: parent.width
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                        Text {
+                                            text: ifaceRow.expanded ? "󰅃" : "󰅀"
+                                            color: root.colPurpleGlow
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+                                    Column {
+                                        visible: ifaceRow.expanded
+                                        width: parent.width
+                                        spacing: 3
+                                        Rectangle {
+                                            width: parent.width
+                                            height: 1
+                                            color: root.colPurpleBorder
+                                            opacity: 0.35
+                                        }
+                                        // MAC comes straight from the device object
+                                        Row {
+                                            width: ifaceRowCol.width
+                                            spacing: 6
+                                            Text {
+                                                text: "MAC"
+                                                color: root.colFgDim
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 10
+                                                width: 54
+                                            }
+                                            Text {
+                                                text: ifaceRow.modelData.address
+                                                color: root.colFg
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 10
+                                                width: ifaceRowCol.width - 60
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                        Repeater {
+                                            model: root.ifaceDetailPairs
+                                            Row {
+                                                required property var modelData
+                                                width: ifaceRowCol.width
+                                                spacing: 6
+                                                Text {
+                                                    text: modelData.k
+                                                    color: root.colFgDim
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    width: 54
+                                                }
+                                                Text {
+                                                    text: modelData.v
+                                                    color: root.colFg
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    width: ifaceRowCol.width - 60
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                        }
+                                        Text {
+                                            visible: root.ifaceDetailPairs.length === 0
+                                            text: "Reading interface..."
+                                            color: root.colFgDim
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: ifaceMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.selectIface(ifaceRow.modelData.name)
+                                }
+                            }
+                        }
+                        Text {
+                            visible: root.netDevices.length === 0
+                            text: "No devices"
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 12
+                            topPadding: 8
+                        }
+                    }
+                }
+            }
+            // ── Calendar popup ───────────────────────────────────────
+            PopupWindow {
+                id: calendarPopup
+                anchor.window: barWindow
+                anchor.rect.x: Math.round((barWindow.width - root.calPopupWidth) / 2)
+                anchor.rect.y: 0
+                implicitWidth: root.calPopupWidth
+                implicitHeight: calCol.implicitHeight + 24
+                visible: root.activePopup === "calendar"
+                color: "transparent"
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "calendar") {
+                        root.activePopup = ""
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Column {
+                        id: calCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 6
+                        width: parent.width - 20
+                        Row {
+                            width: parent.width
+                            spacing: 4
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 6
+                                color: calPrevMa.containsMouse ? root.colHover : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅁"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: calPrevMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calShift(-1)
+                                }
+                            }
+                            Item {
+                                width: parent.width - 60
+                                height: 26
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Qt.formatDate(root.calRef, "MMMM yyyy")
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calToday()   // jump back to current month
+                                }
+                            }
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 6
+                                color: calNextMa.containsMouse ? root.colHover : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅂"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: calNextMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.calShift(1)
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        Grid {
+                            columns: 7
+                            spacing: 2
+                            width: parent.width
+                            Repeater {
+                                model: root.calDayNames
+                                Item {
+                                    required property var modelData
+                                    width: Math.floor((calCol.width - 12) / 7)
+                                    height: 18
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: root.colFgDim
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                    }
+                                }
+                            }
+                        }
+                        Grid {
+                            columns: 7
+                            spacing: 2
+                            width: parent.width
+                            Repeater {
+                                model: root.calCells
+                                Rectangle {
+                                    id: dayCell
+                                    required property var modelData
+                                    width: Math.floor((calCol.width - 12) / 7)
+                                    height: 26
+                                    radius: 5
+                                    color: dayCell.modelData.isToday ? root.colPurple : "transparent"
+                                    border.color: dayCell.modelData.isToday ? root.colPurpleGlow : "transparent"
+                                    border.width: dayCell.modelData.isToday ? 1 : 0
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: dayCell.modelData.current
+                                        text: dayCell.modelData.day
+                                        color: dayCell.modelData.isToday ? root.colFg : root.colFgDim
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.bold: dayCell.modelData.isToday
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        Text {
+                            text: root.currentDate + "  ·  " + root.currentTime
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                }
+            }
+            // ── Volume popup ─────────────────────────────────────────
+            PopupWindow {
+                id: volumePopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 90 - root.volPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.volPopupWidth
+                implicitHeight: volPopupCol.implicitHeight + 24
+                visible: root.activePopup === "volume"
+                color: "transparent"
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "volume") {
+                        root.activePopup = ""
+                    }
+                    if (!visible) {
+                        root.volumeDragging = false
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Column {
+                        id: volPopupCol
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 10
+                        width: parent.width - 16
+                        Text {
+                            text: "󰕾  " + ((root.audioSink && root.audioSink.description)
+                                          ? root.audioSink.description : "Volume")
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 13
+                            font.bold: true
+                            width: parent.width
+                            elide: Text.ElideRight
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: root.colPurpleBorder
+                            opacity: 0.3
+                        }
+                        Item {
+                            width: parent.width
+                            height: 26
+                            Rectangle {
+                                id: sliderTrack
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: 8
+                                radius: 4
+                                color: root.colPopupInset
+                                Rectangle {
+                                    id: sliderFill
+                                    width: sliderTrack.width * (root.volumeDisplay / 100)
+                                    height: parent.height
+                                    radius: 4
+                                    color: root.volumeMuted ? root.colFgDim : root.colPurpleGlow
+                                }
+                                Rectangle {
+                                    id: sliderKnob
+                                    width: 16
+                                    height: 16
+                                    radius: 8
+                                    x: Math.max(0, Math.min(sliderTrack.width - width,
+                                                            sliderTrack.width * (root.volumeDisplay / 100) - width / 2))
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: root.volumeMuted ? root.colFgDim : root.colFg
+                                    border.color: root.colPurpleBorder
+                                    border.width: 2
+                                    scale: (sliderMa.containsMouse || root.volumeDragging) ? 1.15 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation { duration: 80 }
+                                    }
+                                }
+                                // Taller than the 8px track so the grab target
+                                // is a comfortable 26px without a fat groove.
+                                MouseArea {
+                                    id: sliderMa
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                    height: 26
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    function percentAt(x) {
+                                        return (x / sliderTrack.width) * 100
+                                    }
+                                    onPressed: mouse => {
+                                        root.volumeDragging = true
+                                        root.setVolume(percentAt(mouse.x))
+                                    }
+                                    onPositionChanged: mouse => {
+                                        if (root.volumeDragging) root.setVolume(percentAt(mouse.x))
+                                    }
+                                    onReleased: mouse => {
+                                        root.setVolume(percentAt(mouse.x))
+                                        root.volumeDragging = false
+                                    }
+                                    onCanceled: root.volumeDragging = false
+                                    onWheel: wheel => {
+                                        root.nudgeVolume(wheel.angleDelta.y > 0 ? 5 : -5)
+                                    }
+                                }
+                            }
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: 10
+                            Text {
+                                text: root.volumeDisplay + "%"
+                                color: root.volumeMuted ? root.colFgDim : root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 18
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item { width: 10; height: 1 }
+                            Rectangle {
+                                width: muteBtnRow.implicitWidth + 16
+                                height: 28
+                                radius: 6
+                                color: muteMa.containsMouse ? root.colHover : "transparent"
+                                border.color: root.colPurpleBorder
+                                border.width: 1
+                                anchors.verticalCenter: parent.verticalCenter
+                                Row {
+                                    id: muteBtnRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    Text {
+                                        text: root.volumeMuted ? "󰖁" : "󰕾"
+                                        color: root.volumeMuted ? root.colRed : root.colFg
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 13
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: root.volumeMuted ? "Unmute" : "Mute"
+                                        color: root.colFg
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                                MouseArea {
+                                    id: muteMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.toggleMute()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // ── Power popup ──────────────────────────────────────────
+            PopupWindow {
+                id: powerPopup
+                anchor.window: barWindow
+                anchor.rect.x: barWindow.width - 8 - root.powerPopupWidth
+                anchor.rect.y: 0
+                implicitWidth: root.powerPopupWidth
+                implicitHeight: 184
+                visible: root.activePopup === "power"
+                color: "transparent"
+                onVisibleChanged: {
+                    if (!visible && root.activePopup === "power") {
+                        root.activePopup = ""
+                    }
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.widgetRadius + 2
+                    color: root.colPopupBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        width: parent.width - 16
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: lockMa.containsMouse ? root.colHover : "transparent"
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+                                Text {
+                                    text: ""
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Lock"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                id: lockMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.lockSession()
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: sleepMa.containsMouse ? root.colHover : "transparent"
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+                                Text {
+                                    text: "󰤄"
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Sleep"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                id: sleepMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    root.lockSession()      // lock before suspending
+                                    sleepProc.running = true
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: rebootMa.containsMouse ? root.colHover : "transparent"
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+                                Text {
+                                    text: ""
+                                    color: root.colPurpleGlow
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Reboot"
+                                    color: root.colFg
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                id: rebootMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    rebootProc.running = true
+                                }
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: shutMa.containsMouse ? root.colHover : "transparent"
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 10
+                                Text {
+                                    text: "⏻"
+                                    color: root.colRed
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Shutdown"
+                                    color: root.colRed
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                id: shutMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.activePopup = ""
+                                    shutProc.running = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // ── Main bar layout ──────────────────────────────────────
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
+                spacing: 6
+                z: 2
+                // ═════════════════════════════════════════════════════
+                //  LEFT: App launcher (Arch logo) + Dynamic launchers
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: (archMa.containsMouse || root.appLauncherOpen) ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Item {
+                        anchors.centerIn: parent
+                        width: root.iconSize
+                        height: root.iconSize
+                        // Glyph sits behind the icon and shows through if the
+                        // themed icon can't be resolved.
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰣇"
+                            color: root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 20
+                        }
+                        IconImage {
+                            anchors.fill: parent
+                            source: "image://icon/archlinux-logo"
+                        }
+                    }
+                    MouseArea {
+                        id: archMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAppLauncher()
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 22
+                    color: root.colPurpleBorder
+                    opacity: 0.4
+                }
+                // ── Dynamic launcher buttons from launchers.json ─────
+                Repeater {
+                    model: root.launcherItems
+                    Rectangle {
+                        id: launcherBtn
+                        required property var modelData
+                        required property int index
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        radius: root.widgetRadius
+                        color: launcherMa.containsMouse ? root.colHover : "transparent"
+                        border.width: 0
+                        Item {
+                            anchors.centerIn: parent
+                            width: root.iconSize
+                            height: root.iconSize
+                            Text {
+                                anchors.centerIn: parent
+                                text: launcherBtn.modelData.fallback
+                                color: root.colFg
+                                font.family: root.fontFamily
+                                font.pixelSize: 16
+                            }
+                            IconImage {
+                                anchors.fill: parent
+                                source: launcherBtn.modelData.icon
+                                        ? ("image://icon/" + launcherBtn.modelData.icon) : ""
+                            }
+                        }
+                        MouseArea {
+                            id: launcherMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                launcherProcess.command = ["sh", "-c", launcherBtn.modelData.command]
+                                launcherProcess.running = true
+                            }
+                        }
+                        Process {
+                            id: launcherProcess
+                        }
+                    }
+                }
+                // ═════════════════════════════════════════════════════
+                Item { Layout.fillWidth: true }
+                // ═════════════════════════════════════════════════════
+                //  CENTER: Time & Date (12hr) — click for calendar
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: clockRow.implicitWidth + 24
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: clockMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Row {
+                        id: clockRow
+                        anchors.centerIn: parent
+                        spacing: 10
+                        Text {
+                            text: "  " + root.currentTime
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Rectangle {
+                            width: 1
+                            height: 18
+                            color: root.colPurpleBorder
+                            opacity: 0.5
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.currentDate
+                            color: root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: clockMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("calendar")
+                    }
+                }
+                // ═════════════════════════════════════════════════════
+                Item { Layout.fillWidth: true }
+                // ═════════════════════════════════════════════════════
+                //  RIGHT: Mail, Ask, Tray, Network, Volume, Power
+                // ═════════════════════════════════════════════════════
+                Rectangle {
+                    Layout.preferredWidth: mailRow.implicitWidth + 20
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: (mailMa.containsMouse || root.activePopup === "mail")
+                           ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Row {
+                        id: mailRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            text: root.mailCount > 0 ? "󰇮" : "󰇯"
+                            color: root.mailError !== "" ? root.colRed
+                                 : (root.mailCount > 0 ? root.colPurpleGlow : root.colFgDim)
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            visible: root.mailCount > 0
+                            text: root.mailCount
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: mailMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: mouse => {
+                            // Right-click forces a refresh without waiting
+                            // out the two-minute poll.
+                            if (mouse.button === Qt.RightButton) root.checkMail()
+                            else root.togglePopup("mail")
+                        }
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: (askMa.containsMouse || root.askOpen) ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰭹"
+                        color: root.askBusy ? root.colGreen : root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 16
+                    }
+                    MouseArea {
+                        id: askMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAsk()
+                    }
+                }
+                Repeater {
+                    model: root.trayItems
+                    Rectangle {
+                        id: trayBtn
+                        required property var modelData
+                        required property int index
+                        Layout.preferredWidth: 30
+                        Layout.preferredHeight: 34
+                        radius: root.widgetRadius
+                        color: trayMa.containsMouse ? root.colHover : "transparent"
+                        border.width: 0
+                        IconImage {
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 18
+                            source: trayBtn.modelData.icon
+                        }
+                        // NeedsAttention items get the same red dot treatment
+                        Rectangle {
+                            visible: trayBtn.modelData.status === Status.NeedsAttention
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 3
+                            width: 7
+                            height: 7
+                            radius: 3.5
+                            color: root.colRed
+                        }
+                        // Renders the app's own D-Bus menu
+                        QsMenuAnchor {
+                            id: trayMenu
+                            menu: trayBtn.modelData.menu
+                            anchor.item: trayBtn
+                        }
+                        MouseArea {
+                            id: trayMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                            onClicked: mouse => {
+                                if (mouse.button === Qt.RightButton) {
+                                    if (trayBtn.modelData.hasMenu) trayMenu.open()
+                                } else if (mouse.button === Qt.MiddleButton) {
+                                    trayBtn.modelData.secondaryActivate()
+                                } else {
+                                    // onlyMenu items have no activate action
+                                    if (trayBtn.modelData.onlyMenu) {
+                                        if (trayBtn.modelData.hasMenu) trayMenu.open()
+                                    } else {
+                                        trayBtn.modelData.activate()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    visible: root.trayItems.length > 0
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 22
+                    color: root.colPurpleBorder
+                    opacity: 0.4
+                }
+                Rectangle {
+                    Layout.preferredWidth: netRow.implicitWidth + 20
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: netMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Row {
+                        id: netRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            text: root.networkConnected ? "󰤨" : "󰤭"
+                            color: root.networkConnected ? root.colPurpleGlow : root.colFgDim
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.networkName
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: netMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("network")
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth: volRow.implicitWidth + 20
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: volMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Row {
+                        id: volRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            text: root.volumeMuted ? "󰖁" : (root.volumeDisplay > 50 ? "󰕾" : (root.volumeDisplay > 0 ? "󰖀" : "󰕿"))
+                            color: root.volumeMuted ? root.colFgDim : root.colPurpleGlow
+                            font.family: root.fontFamily
+                            font.pixelSize: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: root.volumeDisplay + "%"
+                            color: root.colFg
+                            font.family: root.fontFamily
+                            font.pixelSize: root.fontSize - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: volMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("volume")
+                        onWheel: wheel => root.nudgeVolume(wheel.angleDelta.y > 0 ? 5 : -5)
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 22
+                    color: root.colPurpleBorder
+                    opacity: 0.4
+                }
+                Rectangle {
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 34
+                    radius: root.widgetRadius
+                    color: powerMa.containsMouse ? root.colHover : root.colWidgetBg
+                    border.color: root.colPurpleBorder
+                    border.width: root.borderWidth
+                    Text {
+                        anchors.centerIn: parent
+                        text: "⏻"
+                        color: root.colPurpleGlow
+                        font.family: root.fontFamily
+                        font.pixelSize: 16
+                    }
+                    MouseArea {
+                        id: powerMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePopup("power")
+                    }
+                }
+            }
+        }
+    }
+}

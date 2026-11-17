@@ -25,6 +25,9 @@ Singleton {
     // ── Type ──────────────────────────────────────────────────────────
     property string fontFamily: "JetBrainsMono Nerd Font"
     property int fontSize: 14
+    // Long-form Codex responses are easier to scan in a proportional face.
+    // Tool output continues to use fontFamily so columns and diffs line up.
+    property string askFontFamily: "Noto Sans"
     // The Signal messenger's type. Everything in the thread and the
     // conversation list is sized relative to this one value.
     property int chatFontSize: 14

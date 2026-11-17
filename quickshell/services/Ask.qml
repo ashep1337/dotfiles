@@ -23,8 +23,12 @@ Singleton {
     property string configError: ""
     property string stderrTail: ""
     property string workingDirectory: Quickshell.env("HOME") + "/dev/ai"
+    property var settingsData: ({})
     property var client: null
     property var transcript: []
+    property var history: []
+    property bool historyLoading: false
+    property int chatFontSize: 15
     property int latestTurnStart: 0
     property var requests: []
     property var requestDrafts: ({})
@@ -123,6 +127,17 @@ Singleton {
     }
 
     function newSession() { ask.getClient().reset() }
+    function openSession(id) {
+        if (id === ask.session || ask.busy) return false
+        ask.errorText = ""
+        return ask.getClient().openThread(id)
+    }
+    function adjustChatFont(delta) {
+        ask.chatFontSize = Math.max(11, Math.min(22, ask.chatFontSize + delta))
+        var config = Object.assign({}, ask.settingsData, { chatFontSize: ask.chatFontSize })
+        ask.settingsData = config
+        settings.setText(JSON.stringify(config, null, 2) + "\n")
+    }
     function setMode(isChat) { ask.chat = isChat }
 
     function send(q) {
@@ -182,6 +197,20 @@ Singleton {
             for (var j = 0; j < m.length; j++) if (m[j].id === selected) ask.modelIndex = j
         } else if (e.type === "session") {
             ask.session = e.id
+        } else if (e.type === "historyLoading") {
+            ask.historyLoading = e.value
+        } else if (e.type === "history") {
+            ask.history = e.threads
+        } else if (e.type === "historyOpened") {
+            ask.transcript = e.entries
+            ask.latestTurnStart = ask.transcript.length
+            ask.requests = []
+            ask.streamText = ""
+            ask.streamId = ""
+            ask.quickAnswer = ""
+            ask.lastQuestion = ""
+            ask.lastTokens = 0
+            ask.lastDurationMs = 0
         } else if (e.type === "busy") {
             ask.busy = true
             ask.thinking = false
@@ -236,6 +265,7 @@ Singleton {
             ask.cancelling = false
             ask.lastDurationMs = e.durationMs
             if (e.error) ask.errorText = e.error
+            if (ask.client && ask.ready) ask.client.listThreads()
         } else if (e.type === "fatal") {
             ask.ready = false
             ask.errorText = e.message
@@ -251,10 +281,16 @@ Singleton {
         onLoaded: {
             try {
                 var config = JSON.parse(settings.text())
+                ask.settingsData = config
                 var cwd = config.workingDirectory || (Quickshell.env("HOME") + "/dev/ai")
                 if (cwd.indexOf("~/") === 0) cwd = Quickshell.env("HOME") + cwd.substring(1)
                 if (cwd.charAt(0) !== "/") throw new Error("workingDirectory must be absolute or start with ~/")
                 ask.workingDirectory = cwd
+                if (config.chatFontSize !== undefined) {
+                    var fontSize = Number(config.chatFontSize)
+                    if (!isFinite(fontSize)) throw new Error("chatFontSize must be a number")
+                    ask.chatFontSize = Math.max(11, Math.min(22, Math.round(fontSize)))
+                }
             } catch (e) { ask.configError = "ask-settings.json: " + e.message }
         }
         onLoadFailed: ask.configError = "Could not read ask-settings.json"

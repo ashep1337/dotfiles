@@ -1,3 +1,4 @@
 {
-  "workingDirectory": "~/dev/ai"
+  "workingDirectory": "~/dev/ai",
+  "chatFontSize": 16
 }

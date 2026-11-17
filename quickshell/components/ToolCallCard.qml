@@ -1,5 +1,6 @@
 import QtQuick
 import qs
+import qs.services
 
 // One tool call in the transcript: name, arguments, and the result once it
 // lands. Collapsed by default — tool output is often long and is rarely what
@@ -15,18 +16,18 @@ Rectangle {
     readonly property bool pending: card.entry ? !card.entry.done : false
     readonly property bool failed: card.entry ? card.entry.isError === true : false
 
-    height: cardCol.implicitHeight + 14
-    radius: 6
-    color: Theme.colPopupInset
+    height: cardCol.implicitHeight + 16
+    radius: 8
+    color: "#0d0c12"
     border.color: card.failed ? Theme.colRed : Theme.colPurpleBorder
     border.width: 1
 
     Column {
         id: cardCol
-        x: 8
-        y: 7
-        width: parent.width - 16
-        spacing: 4
+        x: 10
+        y: 8
+        width: parent.width - 20
+        spacing: 6
 
         Row {
             width: parent.width
@@ -40,10 +41,10 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: card.toolName
-                color: Theme.colPurpleGlow
+                text: card.toolName === "Command" ? "$" : card.toolName
+                color: card.toolName === "Command" ? Theme.colGreen : Theme.colPurpleGlow
                 font.family: Theme.fontFamily
-                font.pixelSize: 11
+                font.pixelSize: Math.max(10, Ask.chatFontSize - 3)
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -53,7 +54,7 @@ Rectangle {
                 text: card.entry ? (card.entry.input || "") : ""
                 color: Theme.colFgDim
                 font.family: Theme.fontFamily
-                font.pixelSize: 10
+                font.pixelSize: Math.max(10, Ask.chatFontSize - 4)
                 elide: Text.ElideRight
                 visible: !card.expanded
                 anchors.verticalCenter: parent.verticalCenter
@@ -69,7 +70,7 @@ Rectangle {
                   + ((card.entry && card.entry.result) ? ("\n\n" + card.entry.result) : "")
             color: card.failed ? Theme.colRed : Theme.colFg
             font.family: Theme.fontFamily
-            font.pixelSize: 10
+            font.pixelSize: Math.max(10, Ask.chatFontSize - 4)
             readOnly: true
             selectByMouse: true
             selectionColor: Theme.colPurple

@@ -24,6 +24,15 @@ Codex's applicable managed policies and project instructions still apply.
 
 - Quick shows the latest exchange; Chat shows the complete current conversation.
   Switching views and hiding/reopening the window preserve that conversation.
+- Chat lists the 50 most recently updated Codex threads for the configured
+  working directory. Selecting one loads its transcript and resumes it on the
+  next message.
+- The `−` and `+` controls in the Chat toolbar adjust transcript text from 11
+  to 22 pixels and save the choice in `ask-settings.json`. Prose uses Noto Sans;
+  commands and tool output stay monospaced.
+- Streaming follows the newest response only while the transcript is already
+  at the bottom. Scrolling up holds that exact reading position; use
+  **Jump to latest** to resume following the response.
 - Closing the window or locking the screen cancels active work. Escape in the
   message field cancels a busy turn, or closes an idle window.
 - New in Chat (or `qs ipc call ask reset`) starts a fresh conversation after
@@ -38,9 +47,8 @@ Codex's applicable managed policies and project instructions still apply.
   confirmation and forms with string, number, integer, or boolean fields;
   unsupported forms can be declined or the turn cancelled.
 - Tokens shown are Codex's latest reported turn usage, not a dollar estimate.
-- If the backend exits, the next send resumes the same thread. The UI transcript
-  and thread selection are held in memory and do not survive a Quickshell restart.
-  Codex maintains its own thread history on disk; no history browser is included.
+- If the backend exits, the next send resumes the same thread. Codex maintains
+  thread history on disk, and Chat reloads it after Quickshell restarts.
 
 IPC examples (against your running configuration):
 
